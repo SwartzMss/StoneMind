@@ -1037,12 +1037,20 @@ class StoneMind {
         
         // 根据局面阶段给出不同策略，并检查推荐位置是否可用
         if (moveCount < 8) {
+            console.log('=== 开始获取战略位置建议 ===');
+            console.log('当前棋盘第4行第4列状态:', this.board[4][4]);
+            console.log('当前游戏历史长度:', this.gameHistory.length);
+            
             const availableStrategicMoves = this.getAvailableStrategicMoves();
+            console.log('获取到的可用战略位置:', availableStrategicMoves);
+            
             if (availableStrategicMoves.length > 0) {
                 prompt += `\n【策略建议】：当前可选的重要位置：${availableStrategicMoves.join(' 或 ')}`;
                 prompt += `\n【注意】：优先考虑上述空闲的重要位置，不要选择已被占用的位置`;
+                console.log('✅ 已向AI推荐可用位置:', availableStrategicMoves);
             } else {
                 prompt += `\n【策略建议】：重要位置已被占用，寻找次要战略点或边角空位`;
+                console.log('⚠️ 所有重要战略位置都已被占用');
             }
         } else if (moveCount < 20) {
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
@@ -1078,11 +1086,22 @@ class StoneMind {
         const availableMoves = [];
         for (const { pos, name } of strategicPositions) {
             const [row, col] = pos;
-            if (this.board[row][col] === null && this.isValidMove(row, col)) {  // 位置空闲且合法
+            const cellState = this.board[row][col];
+            const isValid = this.isValidMove(row, col);
+            
+            // 调试信息：记录每个战略位置的状态
+            console.log(`战略位置检查: ${name} -> 棋盘状态: ${cellState}, 有效性: ${isValid}`);
+            
+            if (cellState === null && isValid) {  // 位置空闲且合法
                 availableMoves.push(name);
+            } else {
+                // 记录为什么这个位置不可用
+                const reason = cellState !== null ? `已被${cellState}占用` : '无效移动';
+                console.log(`❌ ${name} 不可用: ${reason}`);
             }
         }
         
+        console.log('最终可用战略位置:', availableMoves);
         return availableMoves;
     }
 
