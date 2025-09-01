@@ -12,6 +12,7 @@ class StoneMind {
         this.apiKey = '';
         this.gameActive = false;
         this.aiThinking = false;
+        this.previewMove = null; // 预览位置 {row, col}
         
         this.canvas = document.getElementById('board');
         this.ctx = this.canvas.getContext('2d');
@@ -29,6 +30,7 @@ class StoneMind {
         this.currentPlayer = 'black';
         this.gameActive = true;
         this.aiThinking = false;
+        this.previewMove = null;
         
         this.updateCanvasSize();
         this.drawBoard();
@@ -197,9 +199,27 @@ class StoneMind {
         const col = Math.round((x - 30) / this.cellSize);
         const row = Math.round((y - 30) / this.cellSize);
         
-        if (this.isValidMove(row, col)) {
-            this.makeMove(row, col, this.currentPlayer);
+        if (!this.isValidPosition(row, col)) {
+            return;
         }
+        
+        // 如果点击的是已经预览的位置，确认落子
+        if (this.previewMove && this.previewMove.row === row && this.previewMove.col === col) {
+            if (this.isValidMove(row, col)) {
+                this.previewMove = null; // 清除预览
+                this.makeMove(row, col, this.currentPlayer);
+            }
+        } else {
+            // 否则设置新的预览位置
+            if (this.isValidMove(row, col)) {
+                this.previewMove = { row, col };
+                this.drawBoard(); // 重绘棋盘以显示预览
+            }
+        }
+    }
+
+    isValidPosition(row, col) {
+        return row >= 0 && row < this.boardSize && col >= 0 && col < this.boardSize;
     }
 
     isValidMove(row, col) {
@@ -213,6 +233,9 @@ class StoneMind {
         if (!this.isValidMove(row, col)) {
             return false;
         }
+
+        // 清除预览状态
+        this.previewMove = null;
 
         // 放置棋子
         this.board[row][col] = color;
@@ -536,6 +559,11 @@ ${boardState}
             }
         }
         
+        // 绘制预览位置
+        if (this.previewMove && this.currentPlayer === this.playerColor) {
+            this.drawPreviewStone(ctx, padding + this.previewMove.col * this.cellSize, padding + this.previewMove.row * this.cellSize, this.currentPlayer);
+        }
+        
         // 高亮最后一步
         if (this.gameHistory.length > 0) {
             const lastMove = this.gameHistory[this.gameHistory.length - 1];
@@ -591,6 +619,42 @@ ${boardState}
         ctx.strokeStyle = '#ff4757';
         ctx.lineWidth = 3;
         ctx.stroke();
+    }
+
+    drawPreviewStone(ctx, x, y, color) {
+        const radius = this.cellSize * 0.4;
+        
+        // 绘制半透明的预览棋子
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        
+        if (color === 'black') {
+            const gradient = ctx.createRadialGradient(x - 5, y - 5, 0, x, y, radius);
+            gradient.addColorStop(0, '#555');
+            gradient.addColorStop(1, '#222');
+            ctx.fillStyle = gradient;
+        } else {
+            const gradient = ctx.createRadialGradient(x - 5, y - 5, 0, x, y, radius);
+            gradient.addColorStop(0, '#fff');
+            gradient.addColorStop(1, '#ddd');
+            ctx.fillStyle = gradient;
+        }
+        
+        ctx.fill();
+        ctx.strokeStyle = color === 'black' ? '#000' : '#999';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // 添加确认提示圆圈
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 8, 0, 2 * Math.PI);
+        ctx.stroke();
+        
+        // 恢复透明度
+        ctx.globalAlpha = 1.0;
     }
 
     updateDisplay() {
