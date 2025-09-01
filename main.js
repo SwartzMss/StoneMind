@@ -1301,19 +1301,7 @@ class StoneMind {
         
         prompt += `\n【你的颜色】：${this.aiColor === 'black' ? '黑子(B)' : '白子(W)'}`;
         
-        // 根据局面阶段给出不同策略
-        if (moveCount < 4) {
-            if (availableSpecialPositions.length > 0) {
-                prompt += `\n【策略建议】：优先考虑推荐的可用特殊位置：${availableSpecialPositions.join(' 或 ')}`;
-                prompt += `\n【注意】：避开已占用的特殊位置，可从白名单中选择其他位置`;
-            } else {
-                prompt += `\n【策略建议】：所有重要特殊位置已被占用，从白名单中选择次要战略点`;
-            }
-        } else if (moveCount < 10) {
-            prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
-        } else {
-            prompt += `\n【策略建议】：围地收官、计算官子价值`;
-        }
+        
         
         prompt += `\n\n【输出格式】：只返回 "row,col | Nonce:${nonce}"`;
         prompt += `\n【禁止】：任何解释、分析或额外文字`;
