@@ -15,6 +15,7 @@ class StoneMind {
         this.previewMove = null; // 预览位置 {row, col}
         this.hoverMove = null; // 鼠标悬停预览位置
         this.captureWinThreshold = 8; // 吃子获胜阈值
+        this.debugMode = false; // 调试模式开关
         
         this.canvas = document.getElementById('board');
         this.ctx = this.canvas.getContext('2d');
@@ -22,6 +23,7 @@ class StoneMind {
         this.initializeBoard();
         this.bindEvents();
         this.updateDisplay();
+        this.initLogWindow();
     }
 
     initializeBoard() {
@@ -36,7 +38,7 @@ class StoneMind {
         this.hoverMove = null;
         
         // 清除之前累积的错误信息
-        this.clearDebugInfo();
+        this.clearLogs();
         
         this.updateCanvasSize();
         this.drawBoard();
@@ -562,7 +564,7 @@ class StoneMind {
                 // 第一次失败时，如果还有重试机会，不显示失败状态
                 if (attempt < maxRetries) {
                     console.log(`AI第${attempt + 1}次尝试失败，准备重试...`);
-                    this.showDebugInfo(`AI第${attempt + 1}次尝试失败，${maxRetries - attempt}秒后重试`);
+                    this.addLog(`❌ AI第${attempt + 1}次尝试失败，${maxRetries - attempt}秒后重试`, 'warning');
                     await this.delay(1000);
                 }
             } catch (error) {
@@ -576,7 +578,7 @@ class StoneMind {
                 } else {
                     // 第一次API错误时，显示重试信息但保持思考状态
                     console.log(`API调用失败，准备重试...`);
-                    this.showDebugInfo(`API调用失败，${maxRetries - attempt}秒后重试`);
+                    this.addLog(`❌ API调用失败，${maxRetries - attempt}秒后重试`, 'error');
                     await this.delay(1000);
                 }
             }
@@ -604,17 +606,17 @@ class StoneMind {
         
         if (move && this.isValidMove(move.row, move.col)) {
             this.makeMove(move.row, move.col, this.aiColor);
-            this.showDebugInfo(`✅ AI成功下棋: (${move.row},${move.col})`);
+            this.addLog(`✅ AI成功下棋: (${move.row},${move.col})`, 'success');
             return { success: true, move };
         } else {
-            this.showDebugInfo(`❌ AI第${attemptNumber + 1}次尝试失败: 无有效落子`);
+            this.addLog(`❌ AI第${attemptNumber + 1}次尝试失败: 无有效落子`, 'error');
             return { success: false, move };
         }
     }
 
     // 处理AI下棋失败的情况
     handleAIMoveFailed() {
-        this.showDebugInfo(`AI两次尝试均失败，启动应急处理`);
+        this.addLog(`⚠️ AI两次尝试均失败，启动应急处理`, 'warning');
         
         if (!this.hasValidMoves()) {
             this.showAIStrategy('🏁 游戏结束', 'info');
@@ -625,7 +627,7 @@ class StoneMind {
             if (smartMove && this.isValidMove(smartMove.row, smartMove.col)) {
                 this.makeMove(smartMove.row, smartMove.col, this.aiColor);
                 this.showAIStrategy('🎯 智能降级', 'fallback');
-                this.showDebugInfo(`AI降级下棋: (${smartMove.row},${smartMove.col})`);
+                this.addLog(`🎯 AI降级下棋: (${smartMove.row},${smartMove.col})`, 'info');
             } else {
                 this.showAIStrategy('❌ 完全失败', 'error');
                 alert('AI无有效落子，且智能降级也失败！');
@@ -635,26 +637,73 @@ class StoneMind {
 
     // 在界面上显示调试信息（手机浏览器友好）
     showDebugInfo(message) {
-        const debugElement = document.getElementById('ai-debug-info');
-        if (debugElement) {
-            debugElement.style.display = 'block';
-            
-            // 如果是错误信息（包含"详细:"），则累积显示
-            if (message.includes('详细:')) {
-                const existingContent = debugElement.innerHTML;
-                debugElement.innerHTML = existingContent + 
-                    `<div style="font-size: 10px; line-height: 1.2; color: #ff6b6b; margin-bottom: 2px;">[错误] ${message}</div>`;
+        this.addLog(message, 'info');
+    }
+    
+    // 初始化日志窗口
+    initLogWindow() {
+        const clearBtn = document.getElementById('clear-log');
+        const debugToggle = document.getElementById('debug-toggle');
+        const debugPanel = document.getElementById('debug-panel');
+        
+        // 调试模式开关
+        debugToggle.addEventListener('change', (e) => {
+            this.debugMode = e.target.checked;
+            if (this.debugMode) {
+                debugPanel.style.display = 'block';
+                this.addLog('🔧 调试模式已开启', 'success');
             } else {
-                // 普通调试信息直接替换
-                debugElement.innerHTML = `<div style="font-size: 10px; line-height: 1.2;">[调试] ${message}</div>`;
+                debugPanel.style.display = 'none';
             }
-            
-            // 10秒后自动隐藏普通调试信息，但保留错误信息
-            setTimeout(() => {
-                if (!debugElement.innerHTML.includes('[错误]')) {
-                    debugElement.style.display = 'none';
-                }
-            }, 10000);
+        });
+        
+        // 清空日志
+        clearBtn.addEventListener('click', () => {
+            this.clearLogs();
+        });
+        
+        // 初始状态
+        this.debugMode = false;
+        debugPanel.style.display = 'none';
+    }
+    
+    // 添加日志条目
+    addLog(message, type = 'info') {
+        // 只有在调试模式开启时才添加日志
+        if (!this.debugMode) return;
+        
+        const logContent = document.getElementById('log-content');
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${type}`;
+        logEntry.innerHTML = `<span style="color: #999;">[${timestamp}]</span> ${message}`;
+        
+        logContent.appendChild(logEntry);
+        
+        // 自动滚动到底部
+        logContent.scrollTop = logContent.scrollHeight;
+        
+        // 限制日志条目数量，避免占用太多内存
+        const entries = logContent.querySelectorAll('.log-entry');
+        if (entries.length > 100) {
+            entries[0].remove();
+        }
+    }
+    
+    // 清空所有日志
+    clearLogs() {
+        const logContent = document.getElementById('log-content');
+        logContent.innerHTML = '<div class="log-entry">日志已清空</div>';
+        if (this.debugMode) {
+            this.addLog('🧹 日志已清空', 'info');
+        }
+    }
+    
+    // 清除调试信息（保持兼容性）
+    clearDebugInfo() {
+        // 新游戏时添加分隔线
+        if (this.debugMode) {
+            this.addLog('=== 🎮 新游戏开始 ===', 'success');
         }
     }
     
@@ -741,7 +790,7 @@ class StoneMind {
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
             const debugMsg = `API错误:${error.message.substring(0,20)}`;
-            this.showDebugInfo(`详细: ${debugMsg} | 完整错误: ${error.message}`);
+            this.addLog(`❌ API错误: ${debugMsg} | 完整错误: ${error.message}`, 'error');
             throw error; // 重新抛出错误，让上层处理重试
         }
     }
@@ -827,7 +876,7 @@ class StoneMind {
         // 检查坐标范围
         if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
             const reason = `坐标超出范围(${row},${col})，范围应为0-${this.boardSize-1}`;
-            this.showDebugInfo(`详细: ${reason}`);
+            this.addLog(`❌ ${reason}`, 'error');
             return { isValid: false, reason };
         }
         
@@ -839,14 +888,14 @@ class StoneMind {
             console.log('AI的原始回复:', originalResponse);
             console.log('发送给AI的棋盘状态:');
             console.log(boardState);
-            this.showDebugInfo(`详细: ${reason} | AI回复:"${originalResponse}"`);
+            this.addLog(`❌ ${reason} | AI回复:"${originalResponse}"`, 'error');
             return { isValid: false, reason };
         }
         
         // 检查是否为自杀手
         if (this.isSuicideMove(row, col, this.aiColor)) {
             const reason = `自杀手(${row},${col})`;
-            this.showDebugInfo(`详细: ${reason}`);
+            this.addLog(`❌ 自杀手: ${reason}`, 'error');
             return { isValid: false, reason };
         }
         
