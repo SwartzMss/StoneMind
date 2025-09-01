@@ -107,6 +107,7 @@ class StoneMind {
             this.playerColor = e.target.value;
             this.aiColor = e.target.value === 'black' ? 'white' : 'black';
             this.setupAvatars(); // 重新设置头像
+            this.positionAIStrategyDisplay(); // 移动AI策略显示到AI一侧
             this.newGame();
         });
         
@@ -226,6 +227,20 @@ class StoneMind {
             document.getElementById('white-avatar').src = elsaAvatar;
             document.getElementById('black-name').textContent = '机器人';
             document.getElementById('white-name').textContent = '艾莎';
+        }
+
+        // 将AI策略显示面板移动到当前AI一侧
+        this.positionAIStrategyDisplay();
+    }
+
+    // 把 ai-strategy-display 动态放置到 AI 一侧的 player-details 容器
+    positionAIStrategyDisplay() {
+        const strategyElement = document.getElementById('ai-strategy-display');
+        if (!strategyElement) return;
+        const aiPlayerId = this.aiColor === 'black' ? 'black-player' : 'white-player';
+        const container = document.getElementById(aiPlayerId)?.querySelector('.player-details');
+        if (container && strategyElement.parentElement !== container) {
+            container.appendChild(strategyElement);
         }
     }
 
@@ -1336,6 +1351,7 @@ class StoneMind {
     newGame() {
         this.initializeBoard();
         this.resetAIStrategy(); // 重置AI策略显示
+        this.positionAIStrategyDisplay(); // 确保新局面板位置正确
         
         // 如果玩家选择白子，AI先手
         if (this.playerColor === 'white' && this.apiKey) {
