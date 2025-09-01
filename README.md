@@ -110,5 +110,3 @@ A: 基于DeepSeek大模型，专门针对9路围棋特点优化，具有不错�
 MIT License - 欢迎自由使用和修改
 
 ---
-
-� **立即开始你的9x9围棋之旅！** [点击游戏](https://yourname.github.io/StoneMind/)
