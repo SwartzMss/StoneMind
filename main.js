@@ -792,25 +792,27 @@ class StoneMind {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${this.apiKey}`,
-                'X-Request-ID': requestId  // 添加唯一请求ID
+                'X-Request-ID': requestId,  // 添加唯一请求ID
+                'Cache-Control': 'no-cache, no-store, max-age=0',  // 强制不缓存
+                'Pragma': 'no-cache'  // 兼容HTTP/1.0
             },
             body: JSON.stringify({
                 model: 'deepseek-chat',
                 messages: [
                     {
                         role: 'system',
-                        content: `你是围棋AI。请求ID: ${requestId}。严格按照以下规则：\n1. 只能选择空位（棋盘上显示为.的位置）\n2. 坐标格式必须是"行号,列号"，例如"3,4"\n3. 行号和列号都是0-8之间的数字\n4. 不能选择已有棋子的位置（B或W）\n5. 不能下自杀手（除非能吃子）\n6. 必须返回有效的坐标，格式："row,col"\n7. 每次分析都要重新检查棋盘状态，不要依赖任何之前的记忆`
+                        content: `你是围棋AI。请求ID: ${requestId}。严格按照以下规则：\n1. 只能从用户提供的白名单中选择位置\n2. 坐标格式必须是"行号,列号"，例如"3,4"\n3. 必须回显用户的请求标识(Nonce)以验证非缓存回复\n4. 输出格式: "row,col | Nonce:<用户提供的nonce>"\n5. 禁止任何解释、分析或额外文字\n6. 每次分析都要重新检查棋盘状态，不要依赖任何之前的记忆`
                     },
                     {
                         role: 'user',
                         content: prompt
                     }
                 ],
-                temperature: 0.7,  // 增加随机性，避免相同输入产生相同输出
-                max_tokens: 50,
-                top_p: 0.9,       // 增加随机性
-                presence_penalty: 0.1,  // 避免重复
-                frequency_penalty: 0.1  // 避免重复
+                temperature: 0.1,  // 降低随机性，提高一致性
+                max_tokens: 30,    // 限制输出长度
+                top_p: 1.0,        // 确保选择最可能的输出
+                presence_penalty: 0.0,  // 不惩罚重复，确保一致性
+                frequency_penalty: 0.0  // 不惩罚频率，确保一致性
             })
         });
 
@@ -823,7 +825,9 @@ class StoneMind {
         }
 
         const data = await response.json();
-        return data.choices[0].message.content.trim();
+        const responseContent = data.choices[0].message.content.trim();
+        this.addLog(`📨 API原始回复: "${responseContent}"`, 'info');
+        return responseContent;
     }
 
     // 解析AI回复并验证移动
@@ -833,7 +837,16 @@ class StoneMind {
         this.addLog(`🔍 AI回复字符码: [${moveText.split('').map(c => c.charCodeAt(0)).join(', ')}]`, 'info');
         this.showDebugInfo(`AI回复: "${moveText}"`);
 
-        // 多种格式解析AI返回
+        // 第一步：验证 Nonce，防止AI使用缓存或历史记忆
+        const nonceMatch = moveText.match(/Nonce\s*:\s*([a-z0-9]+)/i);
+        if (!nonceMatch || nonceMatch[1] !== this._lastNonce) {
+            this.addLog(`❌ Nonce 验证失败！期望: ${this._lastNonce}, 实际: ${nonceMatch ? nonceMatch[1] : '无'}`, 'error');
+            this.addLog(`💡 疑似AI使用了缓存或历史记忆，丢弃此回复`, 'warning');
+            return null;
+        }
+        this.addLog(`✅ Nonce 验证通过: ${nonceMatch[1]}`, 'success');
+
+        // 第二步：解析坐标
         let match = moveText.match(/(\d+),(\d+)/);
         this.addLog(`🎯 第一次正则匹配 /(\d+),(\d+)/ 结果: ${match ? `成功 [${match[1]},${match[2]}]` : '失败'}`, match ? 'success' : 'warning');
         
@@ -876,9 +889,19 @@ class StoneMind {
         const row = parseInt(match[1]);
         const col = parseInt(match[2]);
         this.addLog(`🎯 解析坐标: (${row},${col})`, 'info');
-        this.showDebugInfo(`解析坐标: (${row},${col})`);
+
+        // 第三步：白名单验证
+        const allowedMoves = this.getAllAllowedMoves();
+        const isInWhitelist = allowedMoves.some(([r, c]) => r === row && c === col);
+        if (!isInWhitelist) {
+            this.addLog(`❌ 坐标不在白名单中: (${row},${col})`, 'error');
+            this.addLog(`📝 当前白名单: ${allowedMoves.map(([r,c]) => `${r},${c}`).join(' | ')}`, 'info');
+            this.showDebugInfo(`坐标(${row},${col})不在白名单中`);
+            return null;
+        }
+        this.addLog(`✅ 白名单验证通过: (${row},${col})`, 'success');
         
-        // 验证坐标有效性
+        // 第四步：最终验证坐标有效性
         const validationResult = this.validateAIMove(row, col, moveText, boardState);
         if (validationResult.isValid) {
             this.addLog(`✅ AI成功选择: (${row},${col})`, 'success');
@@ -1031,19 +1054,33 @@ class StoneMind {
     }
 
     generateGoPrompt(boardState) {
+        // 生成唯一nonce，防止AI使用缓存或历史记忆
+        const nonce = Math.random().toString(36).substring(2, 15);
+        this._lastNonce = nonce; // 存储以便后续验证
+        
         const lastMove = this.gameHistory.length > 0 ? this.gameHistory[this.gameHistory.length - 1] : null;
         const moveCount = this.gameHistory.length;
+        
+        // 获取所有允许的位置（白名单）
+        const allowedMoves = this.getAllAllowedMoves();
+        const allowedText = allowedMoves.map(([r, c]) => `${r},${c}`).join(' | ');
+        
+        this.addLog(`🔐 本次请求 Nonce: ${nonce}`, 'info');
+        this.addLog(`📝 白名单位置: ${allowedText}`, 'info');
         
         let prompt = `【围棋对局】9x9棋盘，请选择最佳落子位置。\n\n`;
         
         prompt += `【棋盘状态】(行列坐标从0开始，B=黑子，W=白子，.=空位)：\n${boardState}`;
         
-        prompt += `\n【重要规则】：\n`;
+        prompt += `\n【允许位置白名单】：${allowedText}\n`;
+        prompt += `【请求标识】：${nonce}\n`;
+        
+        prompt += `\n【严格规则】：\n`;
         prompt += `- 坐标格式：row,col (例如：3,4)\n`;
         prompt += `- 坐标范围：0-8\n`;
-        prompt += `- 只能选择空位(.)\n`;
+        prompt += `- 只能从白名单中选择位置\n`;
+        prompt += `- 必须回显请求标识以验证非缓存回复\n`;
         prompt += `- 绝对不能选择已占用位置(B或W)\n`;
-        prompt += `- 仔细检查棋盘状态，确保选择的位置是空的(.)\n`;
         
         if (lastMove) {
             prompt += `\n【上一手】：${lastMove.color === 'black' ? '黑子' : '白子'}下在(${lastMove.row},${lastMove.col})`;
@@ -1051,22 +1088,14 @@ class StoneMind {
         
         prompt += `\n【你的颜色】：${this.aiColor === 'black' ? '黑子(B)' : '白子(W)'}`;
         
-        // 根据局面阶段给出不同策略，并检查推荐位置是否可用
+        // 根据局面阶段给出不同策略
         if (moveCount < 8) {
-            this.addLog('=== 🎯 开始获取战略位置建议 ===', 'info');
-            this.addLog(`当前棋盘第4行第4列状态: ${this.board[4][4] || '空'}`, 'info');
-            this.addLog(`当前游戏历史长度: ${this.gameHistory.length}`, 'info');
-            
             const availableStrategicMoves = this.getAvailableStrategicMoves();
-            this.addLog(`获取到的可用战略位置: ${availableStrategicMoves.length > 0 ? availableStrategicMoves.join('、') : '无'}`, 'info');
-            
             if (availableStrategicMoves.length > 0) {
                 prompt += `\n【策略建议】：当前可选的重要位置：${availableStrategicMoves.join(' 或 ')}`;
-                prompt += `\n【注意】：优先考虑上述空闲的重要位置，不要选择已被占用的位置`;
-                this.addLog(`✅ 已向AI推荐可用位置: ${availableStrategicMoves.join('、')}`, 'success');
+                prompt += `\n【注意】：优先考虑上述空闲的重要位置，但也可选择其他白名单位置`;
             } else {
-                prompt += `\n【策略建议】：重要位置已被占用，寻找次要战略点或边角空位`;
-                this.addLog('⚠️ 所有重要战略位置都已被占用', 'warning');
+                prompt += `\n【策略建议】：重要位置已被占用，从白名单中选择次要战略点`;
             }
         } else if (moveCount < 20) {
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
@@ -1074,15 +1103,30 @@ class StoneMind {
             prompt += `\n【策略建议】：围地收官、计算官子价值`;
         }
         
-        prompt += `\n\n【验证步骤】：\n`;
-        prompt += `1. 查看棋盘状态，找到所有空位(.)\n`;
-        prompt += `2. 从空位中选择战略价值最高的位置\n`;
-        prompt += `3. 确认所选位置确实是空的(.)\n`;
-        prompt += `4. 返回坐标格式：row,col\n`;
-        
-        prompt += `\n请分析棋盘，选择最佳空位，只返回坐标：row,col`;
+        prompt += `\n\n【输出格式】：只返回 "row,col | Nonce:${nonce}"`;
+        prompt += `\n【禁止】：任何解释、分析或额外文字`;
+        prompt += `\n\n请从白名单中选择最佳位置：`;
         
         return prompt;
+    }
+
+    // 获取所有允许的落子位置（白名单）
+    getAllAllowedMoves() {
+        const allowedMoves = [];
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.aiColor;
+        
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                if (this.isValidMove(row, col)) {
+                    allowedMoves.push([row, col]);
+                }
+            }
+        }
+        
+        this.currentPlayer = originalPlayer;
+        this.addLog(`🎯 当前允许的所有位置共 ${allowedMoves.length} 个: ${allowedMoves.map(([r,c]) => `${r},${c}`).join(' | ')}`, 'info');
+        return allowedMoves;
     }
 
     // 获取当前可用的重要战略位置
