@@ -829,18 +829,46 @@ class StoneMind {
     // 解析AI回复并验证移动
     parseAIMoveResponse(moveText, boardState) {
         this.addLog(`🤖 AI原始回复: "${moveText}"`, 'info');
+        this.addLog(`🔍 AI回复长度: ${moveText.length} 字符`, 'info');
+        this.addLog(`🔍 AI回复字符码: [${moveText.split('').map(c => c.charCodeAt(0)).join(', ')}]`, 'info');
         this.showDebugInfo(`AI回复: "${moveText}"`);
 
         // 多种格式解析AI返回
         let match = moveText.match(/(\d+),(\d+)/);
+        this.addLog(`🎯 第一次正则匹配 /(\d+),(\d+)/ 结果: ${match ? `成功 [${match[1]},${match[2]}]` : '失败'}`, match ? 'success' : 'warning');
+        
         if (!match) {
             // 尝试其他格式: (row, col) 或 row col
             match = moveText.match(/\((\d+),\s*(\d+)\)/) || moveText.match(/(\d+)\s+(\d+)/);
+            this.addLog(`🎯 备用正则匹配结果: ${match ? `成功 [${match[1]},${match[2]}]` : '失败'}`, match ? 'success' : 'warning');
+        }
+        
+        if (!match) {
+            // 更多格式尝试
+            const patterns = [
+                { regex: /行\s*(\d+)\s*列\s*(\d+)/, name: '中文格式' },
+                { regex: /(\d+)\s*,\s*(\d+)/, name: '带空格逗号' },
+                { regex: /\[(\d+),(\d+)\]/, name: '方括号格式' },
+                { regex: /position\s*:?\s*(\d+),(\d+)/i, name: 'position格式' },
+                { regex: /move\s*:?\s*(\d+),(\d+)/i, name: 'move格式' },
+                { regex: /(\d+)[-–](\d+)/, name: '短横线格式' }
+            ];
+            
+            for (const {regex, name} of patterns) {
+                match = moveText.match(regex);
+                this.addLog(`🎯 尝试${name} ${regex}: ${match ? `成功 [${match[1]},${match[2]}]` : '失败'}`, match ? 'success' : 'info');
+                if (match) break;
+            }
         }
         
         if (!match) {
             const debugMsg = `解析失败:"${moveText}"`;
             this.addLog(`❌ AI解析失败: ${debugMsg} | 无法从"${moveText}"中解析出坐标`, 'error');
+            this.addLog(`🔍 尝试的正则表达式:`, 'info');
+            this.addLog(`   1. /(\d+),(\d+)/ - 匹配 "数字,数字"`, 'info');
+            this.addLog(`   2. /\((\d+),\s*(\d+)\)/ - 匹配 "(数字,数字)"`, 'info');
+            this.addLog(`   3. /(\d+)\s+(\d+)/ - 匹配 "数字 数字"`, 'info');
+            this.addLog(`💡 可能的原因: AI回复包含额外文字、特殊字符或格式不标准`, 'warning');
             this.showDebugInfo(`AI解析失败: ${debugMsg} | 无法从"${moveText}"中解析出坐标`);
             return null;
         }
