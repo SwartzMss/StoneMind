@@ -35,6 +35,9 @@ class StoneMind {
         this.previewMove = null;
         this.hoverMove = null;
         
+        // 清除之前累积的错误信息
+        this.clearDebugInfo();
+        
         this.updateCanvasSize();
         this.drawBoard();
         this.updateDisplay();
@@ -635,11 +638,32 @@ class StoneMind {
         const debugElement = document.getElementById('ai-debug-info');
         if (debugElement) {
             debugElement.style.display = 'block';
-            debugElement.innerHTML = `<div style="font-size: 10px; line-height: 1.2;">[调试] ${message}</div>`;
-            // 10秒后自动隐藏，减少干扰
+            
+            // 如果是错误信息（包含"详细:"），则累积显示
+            if (message.includes('详细:')) {
+                const existingContent = debugElement.innerHTML;
+                debugElement.innerHTML = existingContent + 
+                    `<div style="font-size: 10px; line-height: 1.2; color: #ff6b6b; margin-bottom: 2px;">[错误] ${message}</div>`;
+            } else {
+                // 普通调试信息直接替换
+                debugElement.innerHTML = `<div style="font-size: 10px; line-height: 1.2;">[调试] ${message}</div>`;
+            }
+            
+            // 10秒后自动隐藏普通调试信息，但保留错误信息
             setTimeout(() => {
-                debugElement.style.display = 'none';
+                if (!debugElement.innerHTML.includes('[错误]')) {
+                    debugElement.style.display = 'none';
+                }
             }, 10000);
+        }
+    }
+    
+    // 清除累积的错误信息
+    clearDebugInfo() {
+        const debugElement = document.getElementById('ai-debug-info');
+        if (debugElement) {
+            debugElement.innerHTML = '';
+            debugElement.style.display = 'none';
         }
     }
     
