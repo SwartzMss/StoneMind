@@ -1271,7 +1271,7 @@ class StoneMind {
         prompt += `\n【你的颜色】：${this.aiColor === 'black' ? '黑子(B)' : '白子(W)'}`;
         
         // 根据局面阶段给出不同策略
-        if (moveCount < 8) {
+        if (moveCount < 4) {
             if (availableSpecialPositions.length > 0) {
                 prompt += `\n【策略建议】：优先考虑推荐的可用特殊位置：${availableSpecialPositions.join(' 或 ')}`;
                 prompt += `\n【注意】：避开已占用的特殊位置，可从白名单中选择其他位置`;
