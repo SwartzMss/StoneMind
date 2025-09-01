@@ -444,16 +444,22 @@ class StoneMind {
     async makeAIMove() {
         if (!this.apiKey) {
             alert('请先输入 DeepSeek API Key');
+            this.aiThinking = false;
+            this.updateDisplay();
             return;
         }
-        
+
         this.aiThinking = true;
         this.updateDisplay();
-        
+
         try {
             const move = await this.getAIMove();
             if (move && this.isValidMove(move.row, move.col)) {
                 this.makeMove(move.row, move.col, this.aiColor);
+            } else {
+                // AI无有效落子，棋局结束
+                this.gameActive = false;
+                alert('AI无有效落子，棋局结束！');
             }
         } catch (error) {
             console.error('AI 下棋失败:', error);
@@ -467,7 +473,7 @@ class StoneMind {
     async getAIMove() {
         const boardState = this.getBoardStateString();
         const prompt = this.generateGoPrompt(boardState);
-        
+
         try {
             const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
                 method: 'POST',
@@ -491,30 +497,33 @@ class StoneMind {
                     max_tokens: 100
                 })
             });
-            
+
             if (!response.ok) {
                 throw new Error(`API 请求失败: ${response.status}`);
             }
-            
+
             const data = await response.json();
             const moveText = data.choices[0].message.content.trim();
-            
+
             // 解析AI返回的坐标
             const match = moveText.match(/(\d+),(\d+)/);
             if (match) {
-                return {
-                    row: parseInt(match[1]),
-                    col: parseInt(match[2])
-                };
+                const row = parseInt(match[1]);
+                const col = parseInt(match[2]);
+                if (this.isValidMove(row, col)) {
+                    return { row, col };
+                }
             }
-            
-            // 如果解析失败，随机选择一个有效位置
-            return this.getRandomValidMove();
-            
+
+            // 如果解析失败或无有效落子，返回null
+            const randomMove = this.getRandomValidMove();
+            return randomMove ? randomMove : null;
+
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
             // 降级到随机移动
-            return this.getRandomValidMove();
+            const randomMove = this.getRandomValidMove();
+            return randomMove ? randomMove : null;
         }
     }
 
@@ -554,40 +563,13 @@ class StoneMind {
     }
 
     generateGoPrompt(boardState) {
-        const currentMove = this.gameHistory.length + 1;
         const lastMove = this.gameHistory.length > 0 ? this.gameHistory[this.gameHistory.length - 1] : null;
-        
-        let prompt = `你是一位9路围棋专家。9路围棋节奏快、战斗激烈，需要精确计算。请分析当前局面并选择最佳落子位置。
-
-=== 棋局信息 ===
-棋盘大小: 9x9（小棋盘）
-当前手数: 第${currentMove}手
-轮到: ${this.aiColor === 'black' ? '黑子' : '白子'}`;
-
+        let prompt = `你是一位专业的围棋AI助手。请根据当前棋盘状态和最近一步，选择最佳落子位置。只返回坐标格式: row,col (例如: 2,4)。\n\n`;
+        prompt += `棋盘(9x9，B=黑子，W=白子，.=空位)：\n${boardState}`;
         if (lastMove) {
-            prompt += `\n上一手: ${lastMove.color === 'black' ? '黑子' : '白子'} 落在 (${lastMove.row},${lastMove.col})`;
+            prompt += `\n最近一步: ${lastMove.color === 'black' ? '黑子' : '白子'} (${lastMove.row},${lastMove.col})`;
         }
-
-        prompt += `\n被提取棋子: 黑子 ${this.blackCaptured}, 白子 ${this.whiteCaptured}
-
-=== 当前棋盘 ===
-(B=黑子, W=白子, .=空位, 坐标从0开始)
-
-${boardState}
-
-=== 9路围棋策略要点 ===
-1. **开局阶段（1-15手）**: 抢占角隅要点，如星位(2,2)、(2,6)、(6,2)、(6,6)和天元(4,4)
-2. **中盘阶段（15-40手）**: 主动寻求战斗，攻击对方薄弱棋组，建立实地
-3. **收官阶段（40手+）**: 精确计算官子价值，争夺边角地盘
-
-=== 当前局面分析重点 ===
-- 棋盘较小，每一手都很重要
-- 优先考虑攻击和防守
-- 关注对方棋子的气数和连接
-- 9路棋盘容错率低，避免过度冒险
-
-请直接返回坐标格式: row,col (例如: 2,4)`;
-
+        prompt += `\n当前轮到: ${this.aiColor === 'black' ? '黑子' : '白子'}`;
         return prompt;
     }
 
