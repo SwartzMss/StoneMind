@@ -18,6 +18,7 @@ class StoneMind {
         this.debugMode = false; // 调试模式开关
         this._debugInfoTimer = null; // 调试信息隐藏定时器
         this._autoHideDebug = false; // 是否自动隐藏调试信息（默认不隐藏，避免闪烁）
+        this.captureEffects = []; // 提子动画效果 [{row,col,start,duration}]
         
         // 统一的战略位置定义，避免重复代码
         this.strategicPositions = [
@@ -54,6 +55,7 @@ class StoneMind {
         this.gameHistory = [];
         this.blackCaptured = 0;
         this.whiteCaptured = 0;
+        this.captureEffects = [];
         this.currentPlayer = 'black';
         this.gameActive = true;
         this.aiThinking = false;
@@ -455,6 +457,7 @@ class StoneMind {
                     for (const [r, c] of group) {
                         this.board[r][c] = null;
                         totalCaptured++;
+                        this.addCaptureEffect(r, c);
                     }
                 }
             }
@@ -470,6 +473,11 @@ class StoneMind {
         }
         
         return totalCaptured;
+    }
+
+    // 添加提子动画效果
+    addCaptureEffect(row, col) {
+        this.captureEffects.push({ row, col, start: performance.now(), duration: 400 });
     }
 
     // 检查游戏是否结束（吃子获胜或无子可下）
@@ -1433,6 +1441,33 @@ class StoneMind {
         if (this.gameHistory.length > 0) {
             const lastMove = this.gameHistory[this.gameHistory.length - 1];
             this.highlightLastMove(ctx, padding + lastMove.col * this.cellSize, padding + lastMove.row * this.cellSize);
+        }
+
+        // 绘制提子动画效果
+        if (this.captureEffects.length > 0) {
+            const now = performance.now();
+            const nextEffects = [];
+            for (const eff of this.captureEffects) {
+                const elapsed = now - eff.start;
+                const t = Math.min(elapsed / eff.duration, 1);
+                const alpha = 1 - t; // 由亮到淡
+                const radius = this.cellSize * (0.45 + 0.25 * t);
+                const x = padding + eff.col * this.cellSize;
+                const y = padding + eff.row * this.cellSize;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, 2 * Math.PI);
+                ctx.strokeStyle = '#ffd166';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.restore();
+                if (t < 1) nextEffects.push(eff);
+            }
+            this.captureEffects = nextEffects;
+            if (this.captureEffects.length > 0) {
+                requestAnimationFrame(() => this.drawBoard());
+            }
         }
     }
 
