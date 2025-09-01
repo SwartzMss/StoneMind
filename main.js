@@ -581,15 +581,16 @@ class StoneMind {
                     messages: [
                         {
                             role: 'system',
-                            content: '你是一位专业的围棋AI助手。你需要分析围棋局面并选择最佳落子位置。你的回答必须简洁明确，只返回坐标格式"row,col"，不要包含任何解释或其他文字。坐标从0开始计数。'
+                            content: '你是世界顶级围棋AI。你必须深度分析每个可能位置的价值：攻击、防守、连接、切断、做眼、破眼等。禁止下无意义的棋。只返回最佳坐标"row,col"，坐标0-8。'
                         },
                         {
                             role: 'user',
                             content: prompt
                         }
                     ],
-                    temperature: 0.7,
-                    max_tokens: 100
+                    temperature: 0.3,  // 降低随机性，提高一致性
+                    max_tokens: 50,    // 减少token，专注坐标
+                    top_p: 0.8        // 增加参数控制
                 })
             });
 
@@ -599,27 +600,101 @@ class StoneMind {
 
             const data = await response.json();
             const moveText = data.choices[0].message.content.trim();
+            console.log('AI原始回复:', moveText);
 
-            // 解析AI返回的坐标
-            const match = moveText.match(/(\d+),(\d+)/);
+            // 多种格式解析AI返回
+            let match = moveText.match(/(\d+),(\d+)/);
+            if (!match) {
+                // 尝试其他格式: (row, col) 或 row col
+                match = moveText.match(/\((\d+),\s*(\d+)\)/) || moveText.match(/(\d+)\s+(\d+)/);
+            }
+            
             if (match) {
                 const row = parseInt(match[1]);
                 const col = parseInt(match[2]);
                 if (this.isValidMove(row, col)) {
+                    console.log(`AI选择: (${row},${col})`);
                     return { row, col };
+                } else {
+                    console.log(`AI返回无效位置: (${row},${col})`);
                 }
             }
 
-            // 如果解析失败或无有效落子，返回null
-            const randomMove = this.getRandomValidMove();
-            return randomMove ? randomMove : null;
+            // 如果AI返回无效，使用智能降级策略
+            console.log('AI回复无效，使用智能降级');
+            return this.getSmartMove();
 
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
-            // 降级到随机移动
-            const randomMove = this.getRandomValidMove();
-            return randomMove ? randomMove : null;
+            // 降级到智能策略
+            return this.getSmartMove();
         }
+    }
+
+    // 智能降级策略（比随机好）
+    getSmartMove() {
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.aiColor;
+        
+        // 1. 优先尝试攻击：能吃掉对方棋子
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                if (this.isValidMove(row, col)) {
+                    // 模拟下棋看是否能吃子
+                    this.board[row][col] = this.aiColor;
+                    const captured = this.simulateCaptures(row, col, this.aiColor);
+                    this.board[row][col] = null;
+                    
+                    if (captured > 0) {
+                        this.currentPlayer = originalPlayer;
+                        console.log(`智能降级：选择攻击位置 (${row},${col})`);
+                        return { row, col };
+                    }
+                }
+            }
+        }
+        
+        // 2. 其次考虑重要位置：角、边、中心
+        const strategicMoves = [
+            [4, 4], // 中心天元
+            [2, 2], [2, 6], [6, 2], [6, 6], // 星位
+            [0, 0], [0, 8], [8, 0], [8, 8], // 角
+            [0, 4], [4, 0], [4, 8], [8, 4]  // 边中心
+        ];
+        
+        for (const [row, col] of strategicMoves) {
+            if (this.isValidMove(row, col)) {
+                this.currentPlayer = originalPlayer;
+                console.log(`智能降级：选择战略位置 (${row},${col})`);
+                return { row, col };
+            }
+        }
+        
+        // 3. 最后随机选择
+        const randomMove = this.getRandomValidMove();
+        this.currentPlayer = originalPlayer;
+        return randomMove;
+    }
+
+    // 模拟吃子数量（不实际执行）
+    simulateCaptures(row, col, color) {
+        const opponentColor = color === 'black' ? 'white' : 'black';
+        let totalCaptured = 0;
+        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        
+        for (const [dr, dc] of directions) {
+            const newRow = row + dr;
+            const newCol = col + dc;
+            
+            if (this.isInBounds(newRow, newCol) && this.board[newRow][newCol] === opponentColor) {
+                const group = this.getGroup(newRow, newCol);
+                if (!this.hasLiberties(group)) {
+                    totalCaptured += group.length;
+                }
+            }
+        }
+        
+        return totalCaptured;
     }
 
     getRandomValidMove() {
@@ -667,12 +742,29 @@ class StoneMind {
 
     generateGoPrompt(boardState) {
         const lastMove = this.gameHistory.length > 0 ? this.gameHistory[this.gameHistory.length - 1] : null;
-        let prompt = `你是一位专业的围棋AI助手。请根据当前棋盘状态和最近一步，选择最佳落子位置。只返回坐标格式: row,col (例如: 2,4)。\n\n`;
-        prompt += `棋盘(9x9，B=黑子，W=白子，.=空位)：\n${boardState}`;
-        if (lastMove) {
-            prompt += `\n最近一步: ${lastMove.color === 'black' ? '黑子' : '白子'} (${lastMove.row},${lastMove.col})`;
+        const moveCount = this.gameHistory.length;
+        
+        let prompt = `你是专业围棋AI。分析局面选择最佳落子。只返回坐标: row,col\n\n`;
+        
+        // 根据局面阶段给出不同策略
+        if (moveCount < 15) {
+            prompt += `开局阶段策略：优先占角(0,0)(0,8)(8,0)(8,8)、抢边、控制中心(4,4)。\n`;
+        } else if (moveCount < 40) {
+            prompt += `中盘阶段策略：攻击对方孤子、连接己方棋子、争夺要点。\n`;
+        } else {
+            prompt += `收官阶段策略：围地、官子价值计算、精确计算。\n`;
         }
-        prompt += `\n当前轮到: ${this.aiColor === 'black' ? '黑子' : '白子'}`;
+        
+        prompt += `棋盘(9x9，B=黑子，W=白子，.=空位)：\n${boardState}`;
+        
+        if (lastMove) {
+            prompt += `\n对方刚下: ${lastMove.color === 'black' ? '黑子' : '白子'} (${lastMove.row},${lastMove.col})`;
+        }
+        
+        // 添加战术提示
+        prompt += `\n你是${this.aiColor === 'black' ? '黑子' : '白子'}。重点考虑：`;
+        prompt += `\n1.能否吃掉对方棋子 2.避免己方被吃 3.连接己方棋子 4.占据要点`;
+        
         return prompt;
     }
 
