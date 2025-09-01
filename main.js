@@ -14,6 +14,7 @@ class StoneMind {
         this.aiThinking = false;
         this.previewMove = null; // 预览位置 {row, col}
         this.hoverMove = null; // 鼠标悬停预览位置
+        this.captureWinThreshold = 8; // 吃子获胜阈值
         
         this.canvas = document.getElementById('board');
         this.ctx = this.canvas.getContext('2d');
@@ -349,6 +350,11 @@ class StoneMind {
         this.drawBoard();
         this.updateDisplay();
         
+        // 检查游戏是否结束
+        if (this.checkGameEnd()) {
+            return true;
+        }
+        
         // 切换玩家
         this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
         
@@ -383,14 +389,59 @@ class StoneMind {
             }
         }
         
-        // 更新提子计数
+        // 更新提子计数 - 修正逻辑：谁下棋谁吃掉对方棋子
         if (color === 'black') {
-            this.whiteCaptured += totalCaptured;
+            this.blackCaptured += totalCaptured;  // 黑子吃掉的白子数量
         } else {
-            this.blackCaptured += totalCaptured;
+            this.whiteCaptured += totalCaptured;  // 白子吃掉的黑子数量
         }
         
         return totalCaptured;
+    }
+
+    // 检查游戏是否结束（吃子获胜或无子可下）
+    checkGameEnd() {
+        // 检查吃子获胜
+        if (this.blackCaptured >= this.captureWinThreshold) {
+            this.gameActive = false;
+            alert(`🎉 黑子获胜！吃掉了 ${this.blackCaptured} 个白子`);
+            return true;
+        }
+        
+        if (this.whiteCaptured >= this.captureWinThreshold) {
+            this.gameActive = false;
+            alert(`🎉 白子获胜！吃掉了 ${this.whiteCaptured} 个黑子`);
+            return true;
+        }
+        
+        // 检查是否还有有效落子位置
+        const hasValidMoves = this.hasValidMoves();
+        if (!hasValidMoves) {
+            this.gameActive = false;
+            // 比较吃子数量决定胜负
+            if (this.blackCaptured > this.whiteCaptured) {
+                alert(`🎉 棋盘已满！黑子获胜！\n黑子吃掉: ${this.blackCaptured}, 白子吃掉: ${this.whiteCaptured}`);
+            } else if (this.whiteCaptured > this.blackCaptured) {
+                alert(`🎉 棋盘已满！白子获胜！\n白子吃掉: ${this.whiteCaptured}, 黑子吃掉: ${this.blackCaptured}`);
+            } else {
+                alert(`🤝 棋盘已满！平局！\n双方各吃掉: ${this.blackCaptured} 个子`);
+            }
+            return true;
+        }
+        
+        return false;
+    }
+
+    // 检查是否还有有效落子位置
+    hasValidMoves() {
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                if (this.isValidMove(row, col)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     getGroup(row, col) {
@@ -457,9 +508,12 @@ class StoneMind {
             if (move && this.isValidMove(move.row, move.col)) {
                 this.makeMove(move.row, move.col, this.aiColor);
             } else {
-                // AI无有效落子，棋局结束
-                this.gameActive = false;
-                alert('AI无有效落子，棋局结束！');
+                // AI无有效落子，检查游戏结束
+                if (!this.hasValidMoves()) {
+                    this.checkGameEnd(); // 这会处理棋盘满的情况
+                } else {
+                    alert('AI无有效落子，但棋盘未满！');
+                }
             }
         } catch (error) {
             console.error('AI 下棋失败:', error);
