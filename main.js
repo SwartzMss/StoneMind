@@ -1280,19 +1280,7 @@ class StoneMind {
             prompt += `【重要】：以上位置已被占用，绝对不能再次选择！\n`;
         }
         
-        // 推荐可用的特殊位置（只在安全白名单中保留）
-        const safeSpecial = availableSpecialPositions
-            .map(name => name)
-            .filter(name => {
-                // 将战略名映射到坐标并判断是否在allowedMoves
-                const match = this.strategicPositions.find(sp => name.startsWith(`${sp.pos[0]},${sp.pos[1]}`) || name.includes(sp.name?.replace(/\(.*\)/,'')));
-                if (!match) return true; // 兜底不过滤
-                const [r,c] = match.pos;
-                return allowedMoves.some(([ar,ac]) => ar===r && ac===c);
-            });
-        if (safeSpecial.length > 0) {
-            prompt += `\n【✅ 推荐特殊位置】：${safeSpecial.join(' 或 ')}\n`;
-        }
+        // 移除“推荐特殊位置”段，避免误导模型（仅保留白名单与TopN）
         
         // 附加启发式Top5（作为引导语义，仍须从白名单中选择）
         if (topMovesText) {
