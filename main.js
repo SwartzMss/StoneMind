@@ -16,6 +16,7 @@ class StoneMind {
         this.hoverMove = null; // 鼠标悬停预览位置
         this.captureWinThreshold = 8; // 吃子获胜阈值
         this.debugMode = false; // 调试模式开关
+        this._debugInfoTimer = null; // 调试信息隐藏定时器
         
         // 统一的战略位置定义，避免重复代码
         this.strategicPositions = [
@@ -736,29 +737,30 @@ class StoneMind {
     
     // 显示棋盘状态给用户看（调试用）
     showBoardStateDebug() {
+        if (!this.debugMode) return;
         const boardState = this.getBoardStateString();
-        const debugElement = document.getElementById('debug-info');
-        if (debugElement) {
-            debugElement.style.display = 'block';
-            debugElement.innerHTML = `<strong>AI看到的棋盘:</strong><br><pre style="font-size:8px; line-height:1;">${boardState}</pre>`;
-            // 8秒后自动隐藏
-            setTimeout(() => {
-                debugElement.style.display = 'none';
-            }, 8000);
-        }
+        this.showTemporaryDebug(`<strong>AI看到的棋盘:</strong><br><pre style="font-size:8px; line-height:1;">${boardState}</pre>`, 8000);
     }
     
     // 显示完整的AI提示内容（调试用）
     showPromptDebug(prompt) {
+        if (!this.debugMode) return;
+        this.showTemporaryDebug(`<strong>发送给AI的完整提示:</strong><br><pre style="font-size:7px; line-height:1.1; max-height:50px; overflow-y:auto;">${prompt}</pre>`, 12000);
+    }
+
+    // 统一的调试信息显示（避免多次setTimeout导致闪烁）
+    showTemporaryDebug(html, durationMs) {
         const debugElement = document.getElementById('debug-info');
-        if (debugElement) {
-            debugElement.style.display = 'block';
-            debugElement.innerHTML = `<strong>发送给AI的完整提示:</strong><br><pre style="font-size:7px; line-height:1.1; max-height:50px; overflow-y:auto;">${prompt}</pre>`;
-            // 12秒后自动隐藏
-            setTimeout(() => {
-                debugElement.style.display = 'none';
-            }, 12000);
+        if (!debugElement) return;
+        debugElement.style.display = 'block';
+        debugElement.innerHTML = html;
+        if (this._debugInfoTimer) {
+            clearTimeout(this._debugInfoTimer);
+            this._debugInfoTimer = null;
         }
+        this._debugInfoTimer = setTimeout(() => {
+            debugElement.style.display = 'none';
+        }, durationMs);
     }
 
     // 显示AI策略状态在机器人区域
