@@ -955,11 +955,13 @@ class StoneMind {
         this.addLog(`🎯 解析坐标: (${row},${col})`, 'info');
 
         // 第三步：白名单验证
-        const allowedMoves = this.getAllAllowedMoves();
-        const isInWhitelist = allowedMoves.some(([r, c]) => r === row && c === col);
+        // 使用更安全的白名单（至少2气或能立即提子）；若为空则回退到所有合法点
+        const safeMoves = this.getAllSafeMoves(2);
+        const whitelist = safeMoves.length > 0 ? safeMoves : this.getAllAllowedMoves();
+        const isInWhitelist = whitelist.some(([r, c]) => r === row && c === col);
         if (!isInWhitelist) {
             this.addLog(`❌ 坐标不在白名单中: (${row},${col})`, 'error');
-            this.addLog(`📝 当前白名单: ${allowedMoves.map(([r,c]) => `${r},${c}`).join(' | ')}`, 'info');
+            this.addLog(`📝 当前白名单: ${whitelist.map(([r,c]) => `${r},${c}`).join(' | ')}`, 'info');
             this.showDebugInfo(`坐标(${row},${col})不在白名单中`);
             return null;
         }
@@ -1231,8 +1233,9 @@ class StoneMind {
         const lastMove = this.gameHistory.length > 0 ? this.gameHistory[this.gameHistory.length - 1] : null;
         const moveCount = this.gameHistory.length;
         
-        // 获取所有允许的位置（白名单）
-        const allowedMoves = this.getAllAllowedMoves();
+        // 获取更安全的白名单（优先安全落点）
+        const safeMoves = this.getAllSafeMoves(2);
+        const allowedMoves = safeMoves.length > 0 ? safeMoves : this.getAllAllowedMoves();
         const allowedText = allowedMoves.map(([r, c]) => `${r},${c}`).join(' | ');
 
         // 基于启发式的Top5推荐（仅作引导）
@@ -1277,9 +1280,18 @@ class StoneMind {
             prompt += `【重要】：以上位置已被占用，绝对不能再次选择！\n`;
         }
         
-        // 推荐可用的特殊位置
-        if (availableSpecialPositions.length > 0) {
-            prompt += `\n【✅ 推荐特殊位置】：${availableSpecialPositions.join(' 或 ')}\n`;
+        // 推荐可用的特殊位置（只在安全白名单中保留）
+        const safeSpecial = availableSpecialPositions
+            .map(name => name)
+            .filter(name => {
+                // 将战略名映射到坐标并判断是否在allowedMoves
+                const match = this.strategicPositions.find(sp => name.startsWith(`${sp.pos[0]},${sp.pos[1]}`) || name.includes(sp.name?.replace(/\(.*\)/,'')));
+                if (!match) return true; // 兜底不过滤
+                const [r,c] = match.pos;
+                return allowedMoves.some(([ar,ac]) => ar===r && ac===c);
+            });
+        if (safeSpecial.length > 0) {
+            prompt += `\n【✅ 推荐特殊位置】：${safeSpecial.join(' 或 ')}\n`;
         }
         
         // 附加启发式Top5（作为引导语义，仍须从白名单中选择）
@@ -1290,7 +1302,7 @@ class StoneMind {
         prompt += `\n【严格规则】：\n`;
         prompt += `- 坐标格式：row,col (例如：3,4)\n`;
         prompt += `- 坐标范围：0-8\n`;
-        prompt += `- 只能从白名单中选择位置\n`;
+        prompt += `- 只能从白名单中选择位置（白名单已过滤不安全点）\n`;
         prompt += `- 必须回显请求标识以验证非缓存回复\n`;
         prompt += `- 绝对不能选择已占用位置(B或W)\n`;
         prompt += `- 特别注意：不能选择上述标明已占用的特殊位置\n`;
@@ -1339,6 +1351,29 @@ class StoneMind {
         this.currentPlayer = originalPlayer;
         this.addLog(`🎯 当前允许的所有位置共 ${allowedMoves.length} 个: ${allowedMoves.map(([r,c]) => `${r},${c}`).join(' | ')}`, 'info');
         return allowedMoves;
+    }
+
+    // 获取更安全的落子集合：至少liberties>=minLib或能立即提子
+    getAllSafeMoves(minLib = 2) {
+        const safe = [];
+        const original = this.currentPlayer;
+        this.currentPlayer = this.aiColor;
+        for (let row = 0; row < this.boardSize; row++) {
+            for (let col = 0; col < this.boardSize; col++) {
+                if (!this.isValidMove(row, col)) continue;
+                // 模拟落子
+                this.board[row][col] = this.aiColor;
+                const myGroup = this.getGroup(row, col);
+                const myLiberties = this.countGroupLiberties(myGroup);
+                const captured = this.simulateCaptures(row, col, this.aiColor);
+                this.board[row][col] = null;
+                if (captured > 0 || myLiberties >= minLib) {
+                    safe.push([row, col]);
+                }
+            }
+        }
+        this.currentPlayer = original;
+        return safe;
     }
 
     // 获取当前可用的重要战略位置
