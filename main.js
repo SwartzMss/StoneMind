@@ -14,7 +14,6 @@ class StoneMind {
         this.aiThinking = false;
         this.previewMove = null; // 预览位置 {row, col}
         this.hoverMove = null; // 鼠标悬停预览位置
-        this.isLandscape = false; // 是否横屏
         
         this.canvas = document.getElementById('board');
         this.ctx = this.canvas.getContext('2d');
@@ -22,88 +21,6 @@ class StoneMind {
         this.initializeBoard();
         this.bindEvents();
         this.updateDisplay();
-        this.handleOrientationChange();
-        this.requestLandscapeMode();
-    }
-
-    async requestLandscapeMode() {
-        // 尝试使用 Screen Orientation API 锁定横屏
-        if (screen.orientation && screen.orientation.lock) {
-            try {
-                await screen.orientation.lock('landscape');
-                console.log('成功锁定为横屏模式');
-            } catch (error) {
-                console.log('无法锁定屏幕方向:', error.message);
-                // 如果无法锁定，显示强制横屏提示
-                this.showLandscapeRequest();
-            }
-        } else {
-            console.log('浏览器不支持屏幕方向锁定API');
-            this.showLandscapeRequest();
-        }
-    }
-
-    showLandscapeRequest() {
-        // 如果是移动设备且为竖屏，显示横屏请求
-        if (this.isMobileDevice() && !this.isLandscape) {
-            const requestElement = document.getElementById('landscape-request') || this.createLandscapeRequest();
-            requestElement.style.display = 'flex';
-        }
-    }
-
-    isMobileDevice() {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-               (window.innerWidth <= 768 && 'ontouchstart' in window);
-    }
-
-    createLandscapeRequest() {
-        const request = document.createElement('div');
-        request.id = 'landscape-request';
-        request.innerHTML = `
-            <div class="landscape-message">
-                <div class="phone-icon">📱➡️📱</div>
-                <h3>请旋转设备</h3>
-                <p>为了获得最佳围棋体验，请将设备旋转为横屏模式</p>
-                <button id="force-landscape-btn" class="force-btn">强制横屏显示</button>
-                <button id="continue-portrait-btn" class="continue-btn">继续竖屏模式</button>
-            </div>
-        `;
-        
-        request.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            color: white;
-            text-align: center;
-            font-family: inherit;
-        `;
-        
-        document.body.appendChild(request);
-        
-        // 绑定按钮事件
-        document.getElementById('force-landscape-btn').addEventListener('click', () => {
-            this.enableForceLandscape();
-            request.style.display = 'none';
-        });
-        
-        document.getElementById('continue-portrait-btn').addEventListener('click', () => {
-            request.style.display = 'none';
-        });
-        
-        return request;
-    }
-
-    enableForceLandscape() {
-        document.body.classList.add('force-landscape');
-        document.querySelector('.container')?.classList.add('rotated');
-        this.showRotationTip();
     }
 
     initializeBoard() {
@@ -176,16 +93,6 @@ class StoneMind {
             // 清除之前的状态显示
             this.clearApiStatus();
         });
-
-        // 屏幕方向变化事件
-        window.addEventListener('orientationchange', () => {
-            setTimeout(() => this.handleOrientationChange(), 100);
-        });
-        
-        // 窗口大小变化事件
-        window.addEventListener('resize', () => {
-            this.handleOrientationChange();
-        });
     }
 
     async testApiKey() {
@@ -256,181 +163,6 @@ class StoneMind {
     clearApiStatus() {
         const statusDiv = document.getElementById('api-status');
         statusDiv.classList.add('hidden');
-    }
-
-    handleOrientationChange() {
-        // 获取屏幕信息
-        const screenWidth = window.screen.width;
-        const screenHeight = window.screen.height;
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        
-        // 检测是否为横屏
-        const wasLandscape = this.isLandscape;
-        this.isLandscape = windowWidth > windowHeight;
-        
-        console.log('屏幕信息:', {
-            screenSize: `${screenWidth}x${screenHeight}`,
-            windowSize: `${windowWidth}x${windowHeight}`,
-            orientation: this.isLandscape ? '横屏' : '竖屏',
-            devicePixelRatio: window.devicePixelRatio
-        });
-        
-        // 强制横屏逻辑
-        this.enforceOrientation();
-        
-        // 如果方向发生变化，显示提示并调整布局
-        if (wasLandscape !== this.isLandscape) {
-            this.showOrientationTip();
-        }
-        
-        // 调整棋盘大小以适应屏幕
-        this.adjustBoardSize();
-        
-        // 重新绘制棋盘
-        this.updateCanvasSize();
-        this.drawBoard();
-    }
-
-    enforceOrientation() {
-        const body = document.body;
-        const container = document.querySelector('.container');
-        const landscapeRequest = document.getElementById('landscape-request');
-        
-        if (!this.isLandscape && this.isMobileDevice()) {
-            // 移动设备竖屏时显示横屏请求（除非用户已经选择强制横屏）
-            if (!body.classList.contains('force-landscape') && landscapeRequest) {
-                landscapeRequest.style.display = 'flex';
-            }
-        } else {
-            // 横屏时隐藏请求界面并移除强制旋转
-            if (landscapeRequest) {
-                landscapeRequest.style.display = 'none';
-            }
-            body.classList.remove('force-landscape');
-            if (container) {
-                container.classList.remove('rotated');
-            }
-        }
-    }
-
-    showRotationTip() {
-        const tipElement = document.getElementById('rotation-tip') || this.createRotationTip();
-        tipElement.style.display = 'block';
-        
-        // 5秒后自动隐藏提示
-        setTimeout(() => {
-            tipElement.style.display = 'none';
-        }, 5000);
-    }
-
-    createRotationTip() {
-        const tip = document.createElement('div');
-        tip.id = 'rotation-tip';
-        tip.innerHTML = '🔄 自动旋转为横屏模式以获得最佳游戏体验';
-        tip.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(52, 152, 219, 0.95);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 25px;
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 10000;
-            display: none;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            animation: bounceIn 0.5s ease-out;
-        `;
-        
-        // 添加动画样式
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes bounceIn {
-                0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
-                50% { transform: translate(-50%, -50%) scale(1.1); }
-                100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            }
-        `;
-        document.head.appendChild(style);
-        
-        document.body.appendChild(tip);
-        return tip;
-    }
-
-    showOrientationTip() {
-        const tipElement = document.getElementById('orientation-tip') || this.createOrientationTip();
-        
-        if (this.isLandscape) {
-            tipElement.textContent = '🎯 横屏模式，最佳围棋体验！';
-            tipElement.className = 'orientation-tip landscape';
-        } else {
-            tipElement.textContent = '📱 建议旋转为横屏以获得更好的下棋体验';
-            tipElement.className = 'orientation-tip portrait';
-        }
-        
-        tipElement.style.display = 'block';
-        
-        // 3秒后自动隐藏提示
-        setTimeout(() => {
-            tipElement.style.display = 'none';
-        }, 3000);
-    }
-
-    createOrientationTip() {
-        const tip = document.createElement('div');
-        tip.id = 'orientation-tip';
-        tip.style.cssText = `
-            position: fixed;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            z-index: 1000;
-            display: none;
-            text-align: center;
-            max-width: 90%;
-        `;
-        document.body.appendChild(tip);
-        return tip;
-    }
-
-    adjustBoardSize() {
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        
-        // 为界面控件预留空间
-        const reservedWidth = this.isLandscape ? 300 : 50; // 横屏时为左右控件预留更多空间
-        const reservedHeight = this.isLandscape ? 50 : 200; // 竖屏时为上下控件预留更多空间
-        
-        const availableWidth = windowWidth - reservedWidth;
-        const availableHeight = windowHeight - reservedHeight;
-        
-        // 计算最佳格子大小
-        const maxCellSize = Math.min(
-            availableWidth / (this.boardSize + 1),
-            availableHeight / (this.boardSize + 1)
-        );
-        
-        // 设置合适的格子大小范围（9x9棋盘可以更大）
-        if (this.isLandscape) {
-            this.cellSize = Math.max(35, Math.min(60, maxCellSize));
-        } else {
-            this.cellSize = Math.max(30, Math.min(50, maxCellSize));
-        }
-        
-        console.log('棋盘调整:', {
-            cellSize: this.cellSize,
-            availableSpace: `${availableWidth}x${availableHeight}`,
-            boardSize: this.boardSize
-        });
     }
 
     setupAvatars() {
@@ -522,7 +254,7 @@ class StoneMind {
         }
         
         // 检测输入类型
-        const isTouch = e.touches || e.changedTouches || e.pointerType === 'touch' || this.isMobileDevice();
+        const isTouch = e.touches || e.changedTouches || e.pointerType === 'touch';
         
         if (isTouch) {
             // 触摸模式：使用两步确认
@@ -555,7 +287,7 @@ class StoneMind {
         }
         
         // 检测是否为鼠标事件（不是触摸）
-        if (e.pointerType === 'touch' || this.isMobileDevice()) {
+        if (e.pointerType === 'touch') {
             return;
         }
         
