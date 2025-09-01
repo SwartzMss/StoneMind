@@ -119,12 +119,6 @@ header p {
     background: linear-gradient(135deg, #138496 0%, #1e7e34 100%);
 }
 
-.api-input-group button:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
-    background: linear-gradient(135deg, #138496 0%, #1e7e34 100%);
-}
-
 .api-input-group button:disabled {
     background: #6c757d;
     cursor: not-allowed;

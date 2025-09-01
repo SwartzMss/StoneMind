@@ -82,7 +82,8 @@ class StoneMind {
         this.canvas.style.width = totalSize + 'px';
         this.canvas.style.height = totalSize + 'px';
         
-        // 缩放绘图上下文以匹配设备像素比
+        // 缩放绘图上下文以匹配设备像素比（先重置变换避免累计缩放）
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.scale(dpr, dpr);
         
         // 只在调试模式下显示Canvas信息
@@ -90,9 +91,8 @@ class StoneMind {
     }
 
     bindEvents() {
-        // 棋盘点击事件 - 同时支持触摸和鼠标事件
+        // 棋盘点击事件 - 统一使用 Pointer 事件，避免触摸与鼠标双触发
         this.canvas.addEventListener('pointerdown', (e) => this.handleBoardClick(e));
-        this.canvas.addEventListener('touchstart', (e) => this.handleBoardClick(e), { passive: false });
         
         // 鼠标悬停预览
         this.canvas.addEventListener('mousemove', (e) => this.handleBoardHover(e));
@@ -171,7 +171,7 @@ class StoneMind {
             this.showApiStatus('❌ 网络错误，请检查网络连接', 'error');
         } finally {
             testButton.disabled = false;
-            testButton.textContent = '测试';
+            testButton.textContent = '测试连接';
         }
     }
 
@@ -707,27 +707,22 @@ class StoneMind {
         }
     }
     
-    // 清除调试信息（保持兼容性）
+    // 清除调试信息（统一至页面上的 debug-info 区域，并在调试模式下记录分隔线）
     clearDebugInfo() {
-        // 新游戏时添加分隔线
-        if (this.debugMode) {
-            this.addLog('=== 🎮 新游戏开始 ===', 'success');
-        }
-    }
-    
-    // 清除累积的错误信息
-    clearDebugInfo() {
-        const debugElement = document.getElementById('ai-debug-info');
+        const debugElement = document.getElementById('debug-info');
         if (debugElement) {
             debugElement.innerHTML = '';
             debugElement.style.display = 'none';
+        }
+        if (this.debugMode) {
+            this.addLog('=== 🎮 新游戏开始 ===', 'success');
         }
     }
     
     // 显示棋盘状态给用户看（调试用）
     showBoardStateDebug() {
         const boardState = this.getBoardStateString();
-        const debugElement = document.getElementById('ai-debug-info');
+        const debugElement = document.getElementById('debug-info');
         if (debugElement) {
             debugElement.style.display = 'block';
             debugElement.innerHTML = `<strong>AI看到的棋盘:</strong><br><pre style="font-size:8px; line-height:1;">${boardState}</pre>`;
@@ -740,7 +735,7 @@ class StoneMind {
     
     // 显示完整的AI提示内容（调试用）
     showPromptDebug(prompt) {
-        const debugElement = document.getElementById('ai-debug-info');
+        const debugElement = document.getElementById('debug-info');
         if (debugElement) {
             debugElement.style.display = 'block';
             debugElement.innerHTML = `<strong>发送给AI的完整提示:</strong><br><pre style="font-size:7px; line-height:1.1; max-height:50px; overflow-y:auto;">${prompt}</pre>`;
@@ -962,11 +957,21 @@ class StoneMind {
         return { isValid: true };
     }
 
-    // 智能降级策略（比随机好）
+    // 智能降级策略（加入启发式优先级）
     getSmartMove() {
         const originalPlayer = this.currentPlayer;
         this.currentPlayer = this.aiColor;
         
+        // 0. 启发式Top候选优先
+        const topMoves = this.getTopHeuristicMoves(5);
+        for (const m of topMoves) {
+            if (this.isValidMove(m.row, m.col)) {
+                this.currentPlayer = originalPlayer;
+                this.addLog(`🧠 启发式优先选择 (${m.row},${m.col}) 分数:${m.score}`, 'success');
+                return { row: m.row, col: m.col };
+            }
+        }
+
         // 1. 优先尝试攻击：能吃掉对方棋子
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
@@ -1026,6 +1031,107 @@ class StoneMind {
         return totalCaptured;
     }
 
+    // 计算一个落子的启发式评分（不考虑长变，只做快速评估）
+    evaluateMove(row, col, color) {
+        // 前置：临时落子
+        this.board[row][col] = color;
+
+        // 1) 直接提子收益
+        const captureStones = this.simulateCaptures(row, col, color);
+
+        // 2) 自身落子后的气数（安全性）
+        const myGroup = this.getGroup(row, col);
+        const myLiberties = this.countGroupLiberties(myGroup);
+
+        // 3) 与己方连接（相邻己方子数量）
+        const friendlyAdjacents = this.countAdjacentColor(row, col, color);
+
+        // 4) 中央偏好（距离天元越近越好）
+        const center = Math.floor(this.boardSize / 2);
+        const centerDistance = Math.abs(row - center) + Math.abs(col - center);
+
+        // 5) 战略点加成（按预设优先级）
+        let strategicBonus = 0;
+        for (const item of this.strategicPositions) {
+            const [r, c] = item.pos;
+            if (r === row && c === col) {
+                // 优先级 1 分值最高
+                strategicBonus = (6 - item.priority) * 6; // 30/24/18/12/6
+                break;
+            }
+        }
+
+        // 6) 危险惩罚：自打气过少且未提子
+        let dangerPenalty = 0;
+        if (captureStones === 0 && myLiberties <= 1) {
+            dangerPenalty = 25;
+        }
+
+        // 权重组合（可调）
+        const score =
+            captureStones * 100 +        // 直接提子优先
+            myLiberties * 6 +            // 气越多越安全
+            friendlyAdjacents * 5 +      // 连接收益
+            strategicBonus +             // 战略位
+            (10 - centerDistance) * 2 -  // 越靠中心越好
+            dangerPenalty;               // 危险惩罚
+
+        // 回滚临时落子
+        this.board[row][col] = null;
+        return score;
+    }
+
+    // 统计一个棋子群的气数
+    countGroupLiberties(group) {
+        const liberties = new Set();
+        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        for (const [row, col] of group) {
+            for (const [dr, dc] of directions) {
+                const r = row + dr;
+                const c = col + dc;
+                if (this.isInBounds(r, c) && this.board[r][c] === null) {
+                    liberties.add(`${r},${c}`);
+                }
+            }
+        }
+        return liberties.size;
+    }
+
+    // 统计落子点相邻的己方子数量
+    countAdjacentColor(row, col, color) {
+        let count = 0;
+        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        for (const [dr, dc] of directions) {
+            const r = row + dr;
+            const c = col + dc;
+            if (this.isInBounds(r, c) && this.board[r][c] === color) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // 基于启发式评分选出 Top-N 候选
+    getTopHeuristicMoves(limit = 5) {
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.aiColor;
+        const allowedMoves = this.getAllAllowedMoves();
+
+        const scored = allowedMoves.map(([row, col]) => {
+            const score = this.evaluateMove(row, col, this.aiColor);
+            return { row, col, score };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+        this.currentPlayer = originalPlayer;
+
+        const top = scored.slice(0, limit);
+        if (this.debugMode) {
+            this.addLog(`🧠 启发式Top${limit}: ${top.map(m => `${m.row},${m.col}(${m.score})`).join(' | ')}`, 'info');
+        }
+        return top;
+    }
+
     getRandomValidMove() {
         const validMoves = [];
         
@@ -1080,6 +1186,10 @@ class StoneMind {
         // 获取所有允许的位置（白名单）
         const allowedMoves = this.getAllAllowedMoves();
         const allowedText = allowedMoves.map(([r, c]) => `${r},${c}`).join(' | ');
+
+        // 基于启发式的Top5推荐（仅作引导）
+        const topMovesHeuristic = this.getTopHeuristicMoves(5);
+        const topMovesText = topMovesHeuristic.map(m => `${m.row},${m.col}`).join(' | ');
         
         // 分析特殊位置的占用情况
         const occupiedSpecialPositions = [];
@@ -1122,6 +1232,11 @@ class StoneMind {
         // 推荐可用的特殊位置
         if (availableSpecialPositions.length > 0) {
             prompt += `\n【✅ 推荐特殊位置】：${availableSpecialPositions.join(' 或 ')}\n`;
+        }
+        
+        // 附加启发式Top5（作为引导语义，仍须从白名单中选择）
+        if (topMovesText) {
+            prompt += `\n【🧠 启发式Top5】：${topMovesText}\n`;
         }
         
         prompt += `\n【严格规则】：\n`;
@@ -1233,16 +1348,19 @@ class StoneMind {
     drawBoard() {
         const ctx = this.ctx;
         const padding = 30;
+        const dpr = window.devicePixelRatio || 1;
+        const width = this.canvas.width / dpr;
+        const height = this.canvas.height / dpr;
         
         // 清空画布
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.clearRect(0, 0, width, height);
         
         // 绘制背景
-        const gradient = ctx.createLinearGradient(0, 0, this.canvas.width, this.canvas.height);
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
         gradient.addColorStop(0, '#deb887');
         gradient.addColorStop(1, '#cd853f');
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.fillRect(0, 0, width, height);
         
         // 绘制网格线
         ctx.strokeStyle = '#8b4513';
