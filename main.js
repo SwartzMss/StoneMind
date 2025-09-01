@@ -482,16 +482,16 @@ class StoneMind {
 
     // 检查游戏是否结束（吃子获胜或无子可下）
     checkGameEnd() {
-        // 检查吃子获胜
+        // 吃子阈值胜利：延迟到动画播放后再提示
         if (this.blackCaptured >= this.captureWinThreshold) {
             this.gameActive = false;
-            alert(`🎉 黑子获胜！吃掉了 ${this.blackCaptured} 个白子`);
+            this.scheduleGameEnd(`🎉 黑子获胜！吃掉了 ${this.blackCaptured} 个白子`);
             return true;
         }
         
         if (this.whiteCaptured >= this.captureWinThreshold) {
             this.gameActive = false;
-            alert(`🎉 白子获胜！吃掉了 ${this.whiteCaptured} 个黑子`);
+            this.scheduleGameEnd(`🎉 白子获胜！吃掉了 ${this.whiteCaptured} 个黑子`);
             return true;
         }
         
@@ -499,18 +499,33 @@ class StoneMind {
         const hasValidMoves = this.hasValidMoves();
         if (!hasValidMoves) {
             this.gameActive = false;
-            // 比较吃子数量决定胜负
+            // 比较吃子数量决定胜负（也延迟少许，给最后一步高亮时间）
             if (this.blackCaptured > this.whiteCaptured) {
-                alert(`🎉 棋盘已满！黑子获胜！\n黑子吃掉: ${this.blackCaptured}, 白子吃掉: ${this.whiteCaptured}`);
+                this.scheduleGameEnd(`🎉 棋盘已满！黑子获胜！\n黑子吃掉: ${this.blackCaptured}, 白子吃掉: ${this.whiteCaptured}`, 350);
             } else if (this.whiteCaptured > this.blackCaptured) {
-                alert(`🎉 棋盘已满！白子获胜！\n白子吃掉: ${this.whiteCaptured}, 黑子吃掉: ${this.blackCaptured}`);
+                this.scheduleGameEnd(`🎉 棋盘已满！白子获胜！\n白子吃掉: ${this.whiteCaptured}, 黑子吃掉: ${this.blackCaptured}`, 350);
             } else {
-                alert(`🤝 棋盘已满！平局！\n双方各吃掉: ${this.blackCaptured} 个子`);
+                this.scheduleGameEnd(`🤝 棋盘已满！平局！\n双方各吃掉: ${this.blackCaptured} 个子`, 350);
             }
             return true;
         }
         
         return false;
+    }
+
+    // 在提子动画播放完（或最短时长）后再显示结算提示
+    scheduleGameEnd(message, minDelayMs = 450) {
+        const start = performance.now();
+        const waitLoop = () => {
+            const elapsed = performance.now() - start;
+            const effectsDone = this.captureEffects.length === 0;
+            if (elapsed >= minDelayMs && effectsDone) {
+                alert(message);
+                return;
+            }
+            requestAnimationFrame(waitLoop);
+        };
+        requestAnimationFrame(waitLoop);
     }
 
     // 检查是否还有有效落子位置
