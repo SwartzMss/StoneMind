@@ -1026,7 +1026,8 @@ class StoneMind {
         prompt += `- 坐标格式：row,col (例如：3,4)\n`;
         prompt += `- 坐标范围：0-8\n`;
         prompt += `- 只能选择空位(.)\n`;
-        prompt += `- 不能选择已占用位置(B或W)\n`;
+        prompt += `- 绝对不能选择已占用位置(B或W)\n`;
+        prompt += `- 仔细检查棋盘状态，确保选择的位置是空的(.)\n`;
         
         if (lastMove) {
             prompt += `\n【上一手】：${lastMove.color === 'black' ? '黑子' : '白子'}下在(${lastMove.row},${lastMove.col})`;
@@ -1038,9 +1039,10 @@ class StoneMind {
         if (moveCount < 8) {
             const availableStrategicMoves = this.getAvailableStrategicMoves();
             if (availableStrategicMoves.length > 0) {
-                prompt += `\n【策略建议】：开局优先选择：${availableStrategicMoves.join(' 或 ')}`;
+                prompt += `\n【策略建议】：当前可选的重要位置：${availableStrategicMoves.join(' 或 ')}`;
+                prompt += `\n【注意】：优先考虑上述空闲的重要位置，不要选择已被占用的位置`;
             } else {
-                prompt += `\n【策略建议】：开局阶段，选择边角要点或接近中心的位置`;
+                prompt += `\n【策略建议】：重要位置已被占用，寻找次要战略点或边角空位`;
             }
         } else if (moveCount < 20) {
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
@@ -1048,7 +1050,13 @@ class StoneMind {
             prompt += `\n【策略建议】：围地收官、计算官子价值`;
         }
         
-        prompt += `\n\n请分析棋盘，选择最佳空位，只返回坐标：row,col`;
+        prompt += `\n\n【验证步骤】：\n`;
+        prompt += `1. 查看棋盘状态，找到所有空位(.)\n`;
+        prompt += `2. 从空位中选择战略价值最高的位置\n`;
+        prompt += `3. 确认所选位置确实是空的(.)\n`;
+        prompt += `4. 返回坐标格式：row,col\n`;
+        
+        prompt += `\n请分析棋盘，选择最佳空位，只返回坐标：row,col`;
         
         return prompt;
     }
@@ -1056,21 +1064,21 @@ class StoneMind {
     // 获取当前可用的重要战略位置
     getAvailableStrategicMoves() {
         const strategicPositions = [
-            { pos: [4, 4], name: '中心(4,4)' },      // 天元
-            { pos: [2, 2], name: '角(2,2)' },        // 左上角星位
-            { pos: [2, 6], name: '角(2,6)' },        // 右上角星位
-            { pos: [6, 2], name: '角(6,2)' },        // 左下角星位
-            { pos: [6, 6], name: '角(6,6)' },        // 右下角星位
-            { pos: [2, 4], name: '边(2,4)' },        // 上边星位
-            { pos: [4, 2], name: '边(4,2)' },        // 左边星位
-            { pos: [4, 6], name: '边(4,6)' },        // 右边星位
-            { pos: [6, 4], name: '边(6,4)' }         // 下边星位
+            { pos: [4, 4], name: '4,4(天元)' },      // 天元
+            { pos: [2, 2], name: '2,2(星位)' },      // 左上角星位
+            { pos: [2, 6], name: '2,6(星位)' },      // 右上角星位
+            { pos: [6, 2], name: '6,2(星位)' },      // 左下角星位
+            { pos: [6, 6], name: '6,6(星位)' },      // 右下角星位
+            { pos: [2, 4], name: '2,4(边星)' },      // 上边星位
+            { pos: [4, 2], name: '4,2(边星)' },      // 左边星位
+            { pos: [4, 6], name: '4,6(边星)' },      // 右边星位
+            { pos: [6, 4], name: '6,4(边星)' }       // 下边星位
         ];
         
         const availableMoves = [];
         for (const { pos, name } of strategicPositions) {
             const [row, col] = pos;
-            if (this.board[row][col] === null) {  // 位置空闲
+            if (this.board[row][col] === null && this.isValidMove(row, col)) {  // 位置空闲且合法
                 availableMoves.push(name);
             }
         }
