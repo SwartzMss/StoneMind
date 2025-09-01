@@ -543,12 +543,13 @@ class StoneMind {
 
         this.aiThinking = true;
         this.updateDisplay();
-        this.showAIStrategy('🧠 大模型分析中...', 'thinking');
+        // 开始思考时不改变策略显示，保持默认的"AI模式"
 
         try {
             const move = await this.getAIMove();
             if (move && this.isValidMove(move.row, move.col)) {
                 this.makeMove(move.row, move.col, this.aiColor);
+                // AI成功下棋，保持默认显示，不特别标记
             } else {
                 // AI无有效落子，检查游戏结束
                 if (!this.hasValidMoves()) {
@@ -581,15 +582,18 @@ class StoneMind {
     // 重置AI策略显示
     resetAIStrategy() {
         const strategyElement = document.getElementById('ai-strategy-display');
-        strategyElement.innerHTML = '<span>策略: 等待中</span>';
+        strategyElement.innerHTML = '<span>策略: 🤖 AI模式</span>';
         strategyElement.className = 'ai-strategy-display';
     }
 
     async getAIMove() {
         const boardState = this.getBoardStateString();
         const prompt = this.generateGoPrompt(boardState);
+        
+        console.log('发送给AI的提示:', prompt);
 
         try {
+            console.log('开始API调用...');
             const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -614,6 +618,8 @@ class StoneMind {
                 })
             });
 
+            console.log('API响应状态:', response.status);
+            
             if (!response.ok) {
                 throw new Error(`API 请求失败: ${response.status}`);
             }
@@ -634,7 +640,7 @@ class StoneMind {
                 const col = parseInt(match[2]);
                 if (this.isValidMove(row, col)) {
                     console.log(`AI选择: (${row},${col})`);
-                    this.showAIStrategy('🎯 大模型决策', 'success');
+                    // AI成功使用大模型，保持默认显示
                     return { row, col };
                 } else {
                     console.log(`AI返回无效位置: (${row},${col})`);
@@ -643,13 +649,13 @@ class StoneMind {
 
             // 如果AI返回无效，使用智能降级策略
             console.log('AI回复无效，使用智能降级');
-            this.showAIStrategy('⚡ 智能降级策略', 'fallback');
+            this.showAIStrategy('⚡ 智能降级', 'fallback');
             return this.getSmartMove();
 
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
             // 降级到智能策略
-            this.showAIStrategy('🔧 API失败，智能降级', 'error');
+            this.showAIStrategy('🔧 API失败', 'error');
             return this.getSmartMove();
         }
     }
@@ -772,13 +778,13 @@ class StoneMind {
         
         let prompt = `你是专业围棋AI。分析局面选择最佳落子。只返回坐标: row,col\n\n`;
         
-        // 根据局面阶段给出不同策略
-        if (moveCount < 15) {
-            prompt += `开局阶段策略：优先占角(0,0)(0,8)(8,0)(8,8)、抢边、控制中心(4,4)。\n`;
-        } else if (moveCount < 40) {
-            prompt += `中盘阶段策略：攻击对方孤子、连接己方棋子、争夺要点。\n`;
+        // 根据局面阶段给出不同策略 (针对9x9棋盘优化)
+        if (moveCount < 8) {
+            prompt += `开局阶段策略：优先占角(2,2)(2,6)(6,2)(6,6)、控制中心(4,4)、抢边星位。\n`;
+        } else if (moveCount < 20) {
+            prompt += `中盘阶段策略：攻击对方孤子、连接己方棋子、争夺要点、扩张势力。\n`;
         } else {
-            prompt += `收官阶段策略：围地、官子价值计算、精确计算。\n`;
+            prompt += `收官阶段策略：围地、官子价值计算、精确计算、争夺边角。\n`;
         }
         
         prompt += `棋盘(9x9，B=黑子，W=白子，.=空位)：\n${boardState}`;
