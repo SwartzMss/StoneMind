@@ -543,7 +543,7 @@ class StoneMind {
 
         this.aiThinking = true;
         this.updateDisplay();
-        this.showAIStrategy('🧠 大模型分析中...');
+        this.showAIStrategy('🧠 大模型分析中...', 'thinking');
 
         try {
             const move = await this.getAIMove();
@@ -563,21 +563,26 @@ class StoneMind {
         } finally {
             this.aiThinking = false;
             this.updateDisplay();
-            this.hideAIStrategy();
+            // 策略信息保持显示，不清除
         }
     }
 
-    // 显示AI策略状态
-    showAIStrategy(message) {
-        const strategyElement = document.getElementById('ai-strategy');
-        strategyElement.textContent = message;
-        strategyElement.classList.remove('hidden');
+    // 显示AI策略状态在机器人区域
+    showAIStrategy(message, type = 'thinking') {
+        const strategyElement = document.getElementById('ai-strategy-display');
+        strategyElement.innerHTML = `<span>策略: ${message}</span>`;
+        
+        // 清除之前的样式类
+        strategyElement.className = 'ai-strategy-display';
+        // 添加新的策略类型样式
+        strategyElement.classList.add(type);
     }
 
-    // 隐藏AI策略状态
-    hideAIStrategy() {
-        const strategyElement = document.getElementById('ai-strategy');
-        strategyElement.classList.add('hidden');
+    // 重置AI策略显示
+    resetAIStrategy() {
+        const strategyElement = document.getElementById('ai-strategy-display');
+        strategyElement.innerHTML = '<span>策略: 等待中</span>';
+        strategyElement.className = 'ai-strategy-display';
     }
 
     async getAIMove() {
@@ -629,7 +634,7 @@ class StoneMind {
                 const col = parseInt(match[2]);
                 if (this.isValidMove(row, col)) {
                     console.log(`AI选择: (${row},${col})`);
-                    this.showAIStrategy('🎯 大模型决策');
+                    this.showAIStrategy('🎯 大模型决策', 'success');
                     return { row, col };
                 } else {
                     console.log(`AI返回无效位置: (${row},${col})`);
@@ -638,13 +643,13 @@ class StoneMind {
 
             // 如果AI返回无效，使用智能降级策略
             console.log('AI回复无效，使用智能降级');
-            this.showAIStrategy('⚡ 智能降级策略');
+            this.showAIStrategy('⚡ 智能降级策略', 'fallback');
             return this.getSmartMove();
 
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
             // 降级到智能策略
-            this.showAIStrategy('🔧 API失败，智能降级');
+            this.showAIStrategy('🔧 API失败，智能降级', 'error');
             return this.getSmartMove();
         }
     }
@@ -672,12 +677,14 @@ class StoneMind {
             }
         }
         
-        // 2. 其次考虑重要位置：角、边、中心
+        // 2. 其次考虑重要位置：按围棋价值排序
         const strategicMoves = [
-            [4, 4], // 中心天元
-            [2, 2], [2, 6], [6, 2], [6, 6], // 星位
-            [0, 0], [0, 8], [8, 0], [8, 8], // 角
-            [0, 4], [4, 0], [4, 8], [8, 4]  // 边中心
+            [4, 4], // 天元(中心)，9路棋盘的核心要点
+            [2, 2], [2, 6], [6, 2], [6, 6], // 星位，角部的最佳位置
+            [2, 4], [4, 2], [4, 6], [6, 4], // 边星，边上的要点
+            [3, 3], [3, 5], [5, 3], [5, 5], // 小目，角部的次选位置
+            [1, 4], [4, 1], [4, 7], [7, 4]  // 边上的重要点
+            // 注意：避开真正的角点(0,0)等死角位置
         ];
         
         for (const [row, col] of strategicMoves) {
@@ -797,6 +804,7 @@ class StoneMind {
 
     newGame() {
         this.initializeBoard();
+        this.resetAIStrategy(); // 重置AI策略显示
         
         // 如果玩家选择白子，AI先手
         if (this.playerColor === 'white' && this.apiKey) {
