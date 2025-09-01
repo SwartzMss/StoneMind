@@ -1242,27 +1242,8 @@ class StoneMind {
         const topMovesHeuristic = this.getTopHeuristicMoves(5);
         const topMovesText = topMovesHeuristic.map(m => `${m.row},${m.col}`).join(' | ');
         
-        // 分析特殊位置的占用情况
-        const occupiedSpecialPositions = [];
-        const availableSpecialPositions = [];
-        
-        for (const { pos, name } of this.strategicPositions.filter(item => item.priority <= 3)) {
-            const [row, col] = pos;
-            const cellState = this.board[row][col];
-            
-            if (cellState !== null) {
-                // 已被占用的特殊位置
-                occupiedSpecialPositions.push(`${name}被${cellState === 'black' ? '黑子' : '白子'}占用`);
-            } else if (this.isValidMove(row, col)) {
-                // 可用的特殊位置
-                availableSpecialPositions.push(name);
-            }
-        }
-        
         this.addLog(`🔐 本次请求 Nonce: ${nonce}`, 'info');
         this.addLog(`📝 白名单位置: ${allowedText}`, 'info');
-        this.addLog(`❌ 已占用特殊位置: ${occupiedSpecialPositions.join('、') || '无'}`, 'warning');
-        this.addLog(`✅ 可用特殊位置: ${availableSpecialPositions.join('、') || '无'}`, 'success');
         
         let prompt = `【围棋对局】9x9棋盘，请选择最佳落子位置。\n\n`;
         
@@ -1271,14 +1252,6 @@ class StoneMind {
         prompt += `\n【允许位置白名单】：${allowedText}\n`;
         prompt += `【请求标识】：${nonce}\n`;
         
-        // 明确告知已占用的特殊位置，形成"黑名单"警告
-        if (occupiedSpecialPositions.length > 0) {
-            prompt += `\n【⚠️ 已占用特殊位置 - 禁止选择】：\n`;
-            for (const occupied of occupiedSpecialPositions) {
-                prompt += `- ${occupied}\n`;
-            }
-            prompt += `【重要】：以上位置已被占用，绝对不能再次选择！\n`;
-        }
         
         // 移除“推荐特殊位置”段，避免误导模型（仅保留白名单与TopN）
         
@@ -1293,7 +1266,6 @@ class StoneMind {
         prompt += `- 只能从白名单中选择位置（白名单已过滤不安全点）\n`;
         prompt += `- 必须回显请求标识以验证非缓存回复\n`;
         prompt += `- 绝对不能选择已占用位置(B或W)\n`;
-        prompt += `- 特别注意：不能选择上述标明已占用的特殊位置\n`;
         
         if (lastMove) {
             prompt += `\n【上一手】：${lastMove.color === 'black' ? '黑子' : '白子'}下在(${lastMove.row},${lastMove.col})`;
