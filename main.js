@@ -543,6 +543,7 @@ class StoneMind {
 
         this.aiThinking = true;
         this.updateDisplay();
+        this.showAIStrategy('🧠 大模型分析中...');
 
         try {
             const move = await this.getAIMove();
@@ -562,7 +563,21 @@ class StoneMind {
         } finally {
             this.aiThinking = false;
             this.updateDisplay();
+            this.hideAIStrategy();
         }
+    }
+
+    // 显示AI策略状态
+    showAIStrategy(message) {
+        const strategyElement = document.getElementById('ai-strategy');
+        strategyElement.textContent = message;
+        strategyElement.classList.remove('hidden');
+    }
+
+    // 隐藏AI策略状态
+    hideAIStrategy() {
+        const strategyElement = document.getElementById('ai-strategy');
+        strategyElement.classList.add('hidden');
     }
 
     async getAIMove() {
@@ -614,6 +629,7 @@ class StoneMind {
                 const col = parseInt(match[2]);
                 if (this.isValidMove(row, col)) {
                     console.log(`AI选择: (${row},${col})`);
+                    this.showAIStrategy('🎯 大模型决策');
                     return { row, col };
                 } else {
                     console.log(`AI返回无效位置: (${row},${col})`);
@@ -622,11 +638,13 @@ class StoneMind {
 
             // 如果AI返回无效，使用智能降级策略
             console.log('AI回复无效，使用智能降级');
+            this.showAIStrategy('⚡ 智能降级策略');
             return this.getSmartMove();
 
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
             // 降级到智能策略
+            this.showAIStrategy('🔧 API失败，智能降级');
             return this.getSmartMove();
         }
     }
@@ -673,6 +691,7 @@ class StoneMind {
         // 3. 最后随机选择
         const randomMove = this.getRandomValidMove();
         this.currentPlayer = originalPlayer;
+        console.log('智能降级：随机选择');
         return randomMove;
     }
 
