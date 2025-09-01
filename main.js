@@ -543,13 +543,14 @@ class StoneMind {
 
         this.aiThinking = true;
         this.updateDisplay();
-        // 开始思考时不改变策略显示，保持默认的"AI模式"
+        // 开始思考时重置策略显示为默认状态
+        this.resetAIStrategy();
 
         try {
             const move = await this.getAIMove();
             if (move && this.isValidMove(move.row, move.col)) {
                 this.makeMove(move.row, move.col, this.aiColor);
-                // AI成功下棋，保持默认显示，不特别标记
+                // AI成功下棋，保持默认显示
             } else {
                 // AI无有效落子，检查游戏结束
                 if (!this.hasValidMoves()) {
@@ -560,11 +561,11 @@ class StoneMind {
             }
         } catch (error) {
             console.error('AI 下棋失败:', error);
+            this.showAIStrategy('❌ 连接失败', 'error');
             alert('AI 下棋失败，请检查 API Key 或网络连接');
         } finally {
             this.aiThinking = false;
             this.updateDisplay();
-            // 策略信息保持显示，不清除
         }
     }
 
