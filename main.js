@@ -654,9 +654,13 @@ class StoneMind {
         this.showPromptDebug(prompt); // 显示完整的提示内容
         this.showDebugInfo(`棋盘状态已获取，准备发送给AI`);
 
-        try {
-            console.log('开始API调用...');
-            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        // 添加重试逻辑，最多尝试2次
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                console.log(`开始API调用... (第${attempt}次尝试)`);
+                this.showDebugInfo(`API调用第${attempt}次尝试`);
+                
+                const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -889,12 +893,25 @@ class StoneMind {
         
         prompt += `\n【你的颜色】：${this.aiColor === 'black' ? '黑子(B)' : '白子(W)'}`;
         
-        // 根据局面阶段给出不同策略
-        if (moveCount < 8) {
-            prompt += `\n【策略建议】：开局优先占角(2,2)(2,6)(6,2)(6,6)或中心(4,4)`;
-        } else if (moveCount < 20) {
+        // 根据局面阶段给出不同策略，只推荐可用位置
+        // moveCount是双方总步数，AI步数大概是moveCount的一半
+        const aiMoveCount = Math.floor(moveCount / 2) + (this.aiColor === 'black' ? 1 : 0);
+        
+        if (moveCount < 10) { // 双方总共不到10步，开局阶段
+            const goodOpeningMoves = [[2,2], [2,6], [6,2], [6,6], [4,4]]; // 星位和天元
+            const availableOpeningMoves = goodOpeningMoves.filter(([r,c]) => 
+                this.isValidPosition(r,c) && this.board[r][c] === null
+            );
+            
+            if (availableOpeningMoves.length > 0) {
+                const moveList = availableOpeningMoves.map(([r,c]) => `(${r},${c})`).join(' ');
+                prompt += `\n【策略建议】：开局优先选择可用要点：${moveList}`;
+            } else {
+                prompt += `\n【策略建议】：开局要点已满，选择边上重要位置`;
+            }
+        } else if (moveCount < 30) { // 中盘阶段
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
-        } else {
+        } else { // 收官阶段
             prompt += `\n【策略建议】：围地收官、计算官子价值`;
         }
         
