@@ -20,7 +20,7 @@
 ## � 开始游戏
 
 ### 在线游戏（推荐）
-1. 访问：[StoneMind在线版](https://yourname.github.io/StoneMind/)
+1. 访问：[StoneMind在线版](https://SwartzMss.github.io/StoneMind/)
 2. 输入你的 DeepSeek API Key
 3. 选择执黑子还是白子
 4. 开始对弈！
