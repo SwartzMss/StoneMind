@@ -64,13 +64,8 @@ class StoneMind {
         // 缩放绘图上下文以匹配设备像素比
         this.ctx.scale(dpr, dpr);
         
-        console.log('Canvas尺寸设置:', {
-            总尺寸: totalSize,
-            设备像素比: dpr,
-            实际像素: `${this.canvas.width}x${this.canvas.height}`,
-            显示尺寸: `${totalSize}x${totalSize}`,
-            格子大小: this.cellSize
-        });
+        // 只在调试模式下显示Canvas信息
+        this.addLog(`📐 Canvas尺寸: ${totalSize}x${totalSize}, 设备像素比: ${dpr}`, 'info');
     }
 
     bindEvents() {
@@ -245,17 +240,11 @@ class StoneMind {
         const col = Math.round((x - padding) / this.cellSize);
         const row = Math.round((y - padding) / this.cellSize);
         
-        console.log('点击调试信息:', {
-            原始坐标: { clientX, clientY },
-            Canvas区域: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-            Canvas坐标: { x, y },
-            格子大小: this.cellSize,
-            棋盘坐标: { row, col },
-            设备像素比: window.devicePixelRatio || 1
-        });
+        // 只在调试模式下显示点击信息
+        this.addLog(`👆 点击位置: (${row},${col})`, 'info');
         
         if (!this.isValidPosition(row, col)) {
-            console.log('无效位置:', { row, col, boardSize: this.boardSize });
+            this.addLog(`🚫 无效位置点击: (${row},${col}) 超出棋盘范围`, 'warning');
             return;
         }
         
@@ -436,10 +425,10 @@ class StoneMind {
         // 更新提子计数 - 修正逻辑：谁下棋谁吃掉对方棋子
         if (color === 'black') {
             this.blackCaptured += totalCaptured;  // 黑子吃掉的白子数量
-            console.log(`黑子吃掉了 ${totalCaptured} 个白子，总计: ${this.blackCaptured}`);
+            this.addLog(`♠️ 黑子吃掉了 ${totalCaptured} 个白子，总计: ${this.blackCaptured}`, 'success');
         } else {
             this.whiteCaptured += totalCaptured;  // 白子吃掉的黑子数量
-            console.log(`白子吃掉了 ${totalCaptured} 个黑子，总计: ${this.whiteCaptured}`);
+            this.addLog(`♡ 白子吃掉了 ${totalCaptured} 个黑子，总计: ${this.whiteCaptured}`, 'success');
         }
         
         return totalCaptured;
@@ -563,8 +552,7 @@ class StoneMind {
                 
                 // 第一次失败时，如果还有重试机会，不显示失败状态
                 if (attempt < maxRetries) {
-                    console.log(`AI第${attempt + 1}次尝试失败，准备重试...`);
-                    this.addLog(`❌ AI第${attempt + 1}次尝试失败，${maxRetries - attempt}秒后重试`, 'warning');
+                    this.addLog(`🔄 AI第${attempt + 1}次尝试失败，准备重试...`, 'warning');
                     await this.delay(1000);
                 }
             } catch (error) {
@@ -577,8 +565,7 @@ class StoneMind {
                     break;
                 } else {
                     // 第一次API错误时，显示重试信息但保持思考状态
-                    console.log(`API调用失败，准备重试...`);
-                    this.addLog(`❌ API调用失败，${maxRetries - attempt}秒后重试`, 'error');
+                    this.addLog(`🔄 API调用失败，准备重试...`, 'warning');
                     await this.delay(1000);
                 }
             }
@@ -746,7 +733,6 @@ class StoneMind {
     // 显示AI策略状态在机器人区域
     showAIStrategy(message, type = 'thinking') {
         const strategyElement = document.getElementById('ai-strategy-display');
-        console.log('显示AI策略:', message, type, strategyElement);
         
         if (strategyElement) {
             strategyElement.innerHTML = `<span>策略: ${message}</span>`;
@@ -755,23 +741,22 @@ class StoneMind {
             strategyElement.className = 'ai-strategy-display';
             // 添加新的策略类型样式
             strategyElement.classList.add(type);
-            console.log('策略显示已更新:', strategyElement.innerHTML);
+            this.addLog(`🎯 AI策略更新: ${message}`, 'info');
         } else {
-            console.error('找不到ai-strategy-display元素！');
+            this.addLog('❌ 找不到ai-strategy-display元素！', 'error');
         }
     }
 
     // 重置AI策略显示
     resetAIStrategy() {
         const strategyElement = document.getElementById('ai-strategy-display');
-        console.log('重置AI策略显示:', strategyElement);
         
         if (strategyElement) {
             strategyElement.innerHTML = '<span>策略: 🤖 AI模式</span>';
             strategyElement.className = 'ai-strategy-display';
-            console.log('策略显示已重置:', strategyElement.innerHTML);
+            this.addLog('🔄 AI策略显示已重置', 'info');
         } else {
-            console.error('找不到ai-strategy-display元素！');
+            this.addLog('❌ 找不到ai-strategy-display元素！', 'error');
         }
     }
 
@@ -779,7 +764,7 @@ class StoneMind {
         const boardState = this.getBoardStateString();
         const prompt = this.generateGoPrompt(boardState);
         
-        console.log('发送给AI的提示:', prompt);
+        this.addLog('📤 发送AI提示完成', 'info');
         this.showBoardStateDebug();
         this.showPromptDebug(prompt);
         this.showDebugInfo(`棋盘状态已获取，准备发送给AI`);
@@ -797,7 +782,7 @@ class StoneMind {
 
     // 调用DeepSeek API
     async callDeepSeekAPI(prompt) {
-        console.log('开始API调用...');
+        this.addLog('🚀 开始API调用...', 'info');
         const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -822,7 +807,7 @@ class StoneMind {
             })
         });
 
-        console.log('API响应状态:', response.status);
+        this.addLog(`📡 API响应状态: ${response.status}`, response.ok ? 'success' : 'error');
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -836,7 +821,7 @@ class StoneMind {
 
     // 解析AI回复并验证移动
     parseAIMoveResponse(moveText, boardState) {
-        console.log('AI原始回复:', moveText);
+        this.addLog(`🤖 AI原始回复: "${moveText}"`, 'info');
         this.showDebugInfo(`AI回复: "${moveText}"`);
 
         // 多种格式解析AI返回
@@ -848,24 +833,24 @@ class StoneMind {
         
         if (!match) {
             const debugMsg = `解析失败:"${moveText}"`;
-            console.log('解析失败:', debugMsg);
+            this.addLog(`❌ AI解析失败: ${debugMsg} | 无法从"${moveText}"中解析出坐标`, 'error');
             this.showDebugInfo(`AI解析失败: ${debugMsg} | 无法从"${moveText}"中解析出坐标`);
             return null;
         }
 
         const row = parseInt(match[1]);
         const col = parseInt(match[2]);
-        console.log(`解析坐标: row=${row}, col=${col}`);
+        this.addLog(`🎯 解析坐标: (${row},${col})`, 'info');
         this.showDebugInfo(`解析坐标: (${row},${col})`);
         
         // 验证坐标有效性
         const validationResult = this.validateAIMove(row, col, moveText, boardState);
         if (validationResult.isValid) {
-            console.log(`AI选择: (${row},${col}) - 有效`);
+            this.addLog(`✅ AI成功选择: (${row},${col})`, 'success');
             this.showDebugInfo(`✅ AI成功选择: (${row},${col})`);
             return { row, col };
         } else {
-            console.log('AI移动无效:', validationResult.reason);
+            this.addLog(`❌ AI移动无效: ${validationResult.reason}`, 'error');
             this.showDebugInfo(`AI移动无效: ${validationResult.reason}`);
             return null;
         }
@@ -884,11 +869,10 @@ class StoneMind {
         if (this.board[row][col] !== null) {
             const occupiedBy = this.board[row][col];
             const reason = `位置已占用(${row},${col})被${occupiedBy}占用`;
-            console.log('完整棋盘状态:', this.board);
-            console.log('AI的原始回复:', originalResponse);
-            console.log('发送给AI的棋盘状态:');
-            console.log(boardState);
             this.addLog(`❌ ${reason} | AI回复:"${originalResponse}"`, 'error');
+            this.addLog(`🔍 完整棋盘状态检查: ${JSON.stringify(this.board)}`, 'info');
+            this.addLog(`📤 发送给AI的棋盘状态:`, 'info');
+            this.addLog(boardState, 'info');
             return { isValid: false, reason };
         }
         
@@ -918,7 +902,7 @@ class StoneMind {
                     
                     if (captured > 0) {
                         this.currentPlayer = originalPlayer;
-                        console.log(`智能降级：选择攻击位置 (${row},${col})`);
+                        this.addLog(`🎯 智能降级：选择攻击位置 (${row},${col})`, 'info');
                         return { row, col };
                     }
                 }
@@ -938,7 +922,7 @@ class StoneMind {
         for (const [row, col] of strategicMoves) {
             if (this.isValidMove(row, col)) {
                 this.currentPlayer = originalPlayer;
-                console.log(`智能降级：选择战略位置 (${row},${col})`);
+                this.addLog(`🎯 智能降级：选择战略位置 (${row},${col})`, 'info');
                 return { row, col };
             }
         }
@@ -946,7 +930,7 @@ class StoneMind {
         // 3. 最后随机选择
         const randomMove = this.getRandomValidMove();
         this.currentPlayer = originalPlayer;
-        console.log('智能降级：随机选择');
+        this.addLog('🎯 智能降级：随机选择', 'info');
         return randomMove;
     }
 
@@ -1037,20 +1021,20 @@ class StoneMind {
         
         // 根据局面阶段给出不同策略，并检查推荐位置是否可用
         if (moveCount < 8) {
-            console.log('=== 开始获取战略位置建议 ===');
-            console.log('当前棋盘第4行第4列状态:', this.board[4][4]);
-            console.log('当前游戏历史长度:', this.gameHistory.length);
+            this.addLog('=== 🎯 开始获取战略位置建议 ===', 'info');
+            this.addLog(`当前棋盘第4行第4列状态: ${this.board[4][4] || '空'}`, 'info');
+            this.addLog(`当前游戏历史长度: ${this.gameHistory.length}`, 'info');
             
             const availableStrategicMoves = this.getAvailableStrategicMoves();
-            console.log('获取到的可用战略位置:', availableStrategicMoves);
+            this.addLog(`获取到的可用战略位置: ${availableStrategicMoves.length > 0 ? availableStrategicMoves.join('、') : '无'}`, 'info');
             
             if (availableStrategicMoves.length > 0) {
                 prompt += `\n【策略建议】：当前可选的重要位置：${availableStrategicMoves.join(' 或 ')}`;
                 prompt += `\n【注意】：优先考虑上述空闲的重要位置，不要选择已被占用的位置`;
-                console.log('✅ 已向AI推荐可用位置:', availableStrategicMoves);
+                this.addLog(`✅ 已向AI推荐可用位置: ${availableStrategicMoves.join('、')}`, 'success');
             } else {
                 prompt += `\n【策略建议】：重要位置已被占用，寻找次要战略点或边角空位`;
-                console.log('⚠️ 所有重要战略位置都已被占用');
+                this.addLog('⚠️ 所有重要战略位置都已被占用', 'warning');
             }
         } else if (moveCount < 20) {
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
@@ -1084,24 +1068,27 @@ class StoneMind {
         ];
         
         const availableMoves = [];
+        this.addLog('🔍 开始检查战略位置...', 'info');
+        
         for (const { pos, name } of strategicPositions) {
             const [row, col] = pos;
             const cellState = this.board[row][col];
             const isValid = this.isValidMove(row, col);
             
             // 调试信息：记录每个战略位置的状态
-            console.log(`战略位置检查: ${name} -> 棋盘状态: ${cellState}, 有效性: ${isValid}`);
+            this.addLog(`战略位置检查: ${name} -> 棋盘状态: ${cellState || '空'}, 有效性: ${isValid}`, 'info');
             
             if (cellState === null && isValid) {  // 位置空闲且合法
                 availableMoves.push(name);
+                this.addLog(`✅ ${name} 可用`, 'success');
             } else {
                 // 记录为什么这个位置不可用
                 const reason = cellState !== null ? `已被${cellState}占用` : '无效移动';
-                console.log(`❌ ${name} 不可用: ${reason}`);
+                this.addLog(`❌ ${name} 不可用: ${reason}`, 'warning');
             }
         }
         
-        console.log('最终可用战略位置:', availableMoves);
+        this.addLog(`最终可用战略位置: ${availableMoves.length > 0 ? availableMoves.join('、') : '无'}`, 'info');
         return availableMoves;
     }
 
