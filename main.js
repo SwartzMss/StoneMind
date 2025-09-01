@@ -392,8 +392,10 @@ class StoneMind {
         // 更新提子计数 - 修正逻辑：谁下棋谁吃掉对方棋子
         if (color === 'black') {
             this.blackCaptured += totalCaptured;  // 黑子吃掉的白子数量
+            console.log(`黑子吃掉了 ${totalCaptured} 个白子，总计: ${this.blackCaptured}`);
         } else {
             this.whiteCaptured += totalCaptured;  // 白子吃掉的黑子数量
+            console.log(`白子吃掉了 ${totalCaptured} 个黑子，总计: ${this.whiteCaptured}`);
         }
         
         return totalCaptured;
@@ -829,9 +831,9 @@ class StoneMind {
             aiThinkingElement.classList.add('hidden');
         }
         
-        // 更新提子数
-        document.getElementById('black-captured').textContent = this.blackCaptured;
-        document.getElementById('white-captured').textContent = this.whiteCaptured;
+        // 更新提子数 - 注意：显示的是各自吃掉对方的数量
+        document.getElementById('black-captured').textContent = this.blackCaptured;  // 黑子吃掉的白子数
+        document.getElementById('white-captured').textContent = this.whiteCaptured;  // 白子吃掉的黑子数
     }
 
     updateAvatarStates() {
