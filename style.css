@@ -9,6 +9,7 @@ body {
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     min-height: 100vh;
     padding: 20px;
+    overflow-x: auto; /* 横屏时允许水平滚动 */
 }
 
 .container {
@@ -56,6 +57,17 @@ header p {
     font-weight: 600;
     color: #495057;
     font-size: 0.9em;
+}
+
+.board-info {
+    font-weight: 600;
+    color: #667eea;
+    font-size: 16px;
+    padding: 8px 12px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 8px;
+    border: 2px solid rgba(102, 126, 234, 0.2);
+    display: inline-block;
 }
 
 .control-group select,
@@ -335,6 +347,10 @@ header p {
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     touch-action: none; /* 防止触控时页面滚动 */
+    user-select: none; /* 防止选中文本 */
+    -webkit-user-select: none;
+    -webkit-touch-callout: none; /* 防止长按弹出菜单 */
+    -webkit-tap-highlight-color: transparent; /* 移除点击高亮 */
 }
 
 /* 响应式设计 */
@@ -415,4 +431,307 @@ header p {
     border-radius: 50%;
     transition: opacity 0.2s;
     opacity: 0;
+}
+
+/* 横屏优化样式 */
+@media screen and (orientation: landscape) and (max-height: 600px) {
+    body {
+        padding: 10px;
+    }
+    
+    .container {
+        margin: 0;
+        border-radius: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    header {
+        padding: 10px 20px;
+    }
+    
+    header h1 {
+        font-size: 1.8em;
+        margin-bottom: 5px;
+    }
+    
+    header p {
+        font-size: 0.9em;
+    }
+    
+    .game-controls {
+        padding: 10px 20px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 15px;
+    }
+    
+    .control-group {
+        white-space: nowrap;
+        min-width: fit-content;
+    }
+    
+    .game-layout {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        gap: 15px;
+    }
+    
+    .player-info {
+        flex: 0 0 140px;
+        margin-bottom: 0;
+    }
+    
+    .game-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+    }
+    
+    .board-container {
+        margin: 10px 0;
+    }
+    
+    #board {
+        max-width: calc(100vw - 320px);
+        max-height: calc(100vh - 140px);
+        width: auto !important;
+        height: auto !important;
+    }
+    
+    .player-avatar img {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .player-name {
+        font-size: 14px;
+    }
+    
+    .player-stats {
+        font-size: 12px;
+    }
+    
+    /* 横屏时隐藏一些不必要的元素 */
+    .ai-thinking.landscape {
+        position: fixed;
+        top: 50%;
+        right: 20px;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 10px;
+        border-radius: 10px;
+        font-size: 12px;
+    }
+}
+
+/* 方向提示样式 */
+.orientation-tip {
+    animation: slideDown 0.3s ease-out;
+}
+
+.orientation-tip.landscape {
+    background: rgba(46, 204, 113, 0.9) !important;
+}
+
+.orientation-tip.portrait {
+    background: rgba(231, 76, 60, 0.9) !important;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* 强制横屏样式 */
+.force-landscape {
+    overflow: hidden;
+}
+
+.force-landscape .container.rotated {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+    width: 100vh;
+    height: 100vw;
+    max-width: none;
+    transition: transform 0.6s ease-in-out;
+    z-index: 1000;
+}
+
+/* 在强制横屏模式下优化布局 */
+.force-landscape .container.rotated .game-layout {
+    height: calc(100vw - 120px);
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    gap: 15px;
+}
+
+.force-landscape .container.rotated .player-info {
+    flex: 0 0 120px;
+    margin-bottom: 0;
+}
+
+.force-landscape .container.rotated .game-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+}
+
+.force-landscape .container.rotated #board {
+    max-width: calc(100vh - 280px);
+    max-height: calc(100vw - 140px);
+    width: auto !important;
+    height: auto !important;
+}
+
+.force-landscape .container.rotated header {
+    padding: 8px 15px;
+}
+
+.force-landscape .container.rotated header h1 {
+    font-size: 1.5em;
+    margin-bottom: 3px;
+}
+
+.force-landscape .container.rotated header p {
+    font-size: 0.8em;
+}
+
+.force-landscape .container.rotated .game-controls {
+    padding: 8px 15px;
+    gap: 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.force-landscape .container.rotated .control-group {
+    white-space: nowrap;
+    min-width: fit-content;
+}
+
+.force-landscape .container.rotated .player-avatar img {
+    width: 45px;
+    height: 45px;
+}
+
+.force-landscape .container.rotated .player-name {
+    font-size: 13px;
+}
+
+.force-landscape .container.rotated .player-stats {
+    font-size: 11px;
+}
+
+/* 为强制横屏模式添加背景遮罩 */
+.force-landscape::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    z-index: 999;
+}
+
+/* 旋转动画 */
+.container.rotated {
+    animation: rotateToLandscape 0.6s ease-in-out;
+}
+
+@keyframes rotateToLandscape {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    to {
+        transform: translate(-50%, -50%) rotate(90deg);
+    }
+}
+
+/* 横屏请求界面样式 */
+.landscape-message {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 40px 30px;
+    max-width: 350px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.phone-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+    animation: rotatePhone 2s ease-in-out infinite;
+}
+
+@keyframes rotatePhone {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+}
+
+.landscape-message h3 {
+    font-size: 24px;
+    margin-bottom: 15px;
+    color: #fff;
+}
+
+.landscape-message p {
+    font-size: 16px;
+    margin-bottom: 25px;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.5;
+}
+
+.force-btn, .continue-btn {
+    padding: 12px 24px;
+    margin: 5px;
+    border: none;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-block;
+    min-width: 120px;
+}
+
+.force-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.force-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.continue-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.continue-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
 }
