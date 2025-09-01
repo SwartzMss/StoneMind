@@ -574,11 +574,38 @@ class StoneMind {
         const debugElement = document.getElementById('debug-info');
         if (debugElement) {
             debugElement.style.display = 'block';
-            debugElement.textContent = `[调试] ${message}`;
-            // 5秒后自动隐藏
+            debugElement.innerHTML = `<div style="font-size: 11px; line-height: 1.2;">[调试] ${message}</div>`;
+            // 20秒后自动隐藏，给更多时间查看
             setTimeout(() => {
                 debugElement.style.display = 'none';
-            }, 5000);
+            }, 20000);
+        }
+    }
+    
+    // 显示棋盘状态给用户看（调试用）
+    showBoardStateDebug() {
+        const boardState = this.getBoardStateString();
+        const debugElement = document.getElementById('debug-info');
+        if (debugElement) {
+            debugElement.style.display = 'block';
+            debugElement.innerHTML = `<strong>AI看到的棋盘:</strong><br><pre style="font-size:10px; line-height:1;">${boardState}</pre>`;
+            // 15秒后自动隐藏
+            setTimeout(() => {
+                debugElement.style.display = 'none';
+            }, 15000);
+        }
+    }
+    
+    // 显示完整的AI提示内容（调试用）
+    showPromptDebug(prompt) {
+        const debugElement = document.getElementById('debug-info');
+        if (debugElement) {
+            debugElement.style.display = 'block';
+            debugElement.innerHTML = `<strong>发送给AI的完整提示:</strong><br><pre style="font-size:9px; line-height:1.1; max-height:200px; overflow-y:auto;">${prompt}</pre>`;
+            // 25秒后自动隐藏，给更多时间查看
+            setTimeout(() => {
+                debugElement.style.display = 'none';
+            }, 25000);
         }
     }
 
@@ -623,6 +650,9 @@ class StoneMind {
         const prompt = this.generateGoPrompt(boardState);
         
         console.log('发送给AI的提示:', prompt);
+        this.showBoardStateDebug(); // 显示AI看到的棋盘状态
+        this.showPromptDebug(prompt); // 显示完整的提示内容
+        this.showDebugInfo(`棋盘状态已获取，准备发送给AI`);
 
         try {
             console.log('开始API调用...');
@@ -637,7 +667,7 @@ class StoneMind {
                     messages: [
                         {
                             role: 'system',
-                            content: '你是世界顶级围棋AI。你必须深度分析每个可能位置的价值：攻击、防守、连接、切断、做眼、破眼等。禁止下无意义的棋。只返回最佳坐标"row,col"，坐标0-8。'
+                            content: '你是围棋AI。严格按照以下规则：\n1. 只能选择空位（棋盘上显示为.的位置）\n2. 坐标格式必须是"行号,列号"，例如"3,4"\n3. 行号和列号都是0-8之间的数字\n4. 不能选择已有棋子的位置（B或W）\n5. 不能下自杀手（除非能吃子）\n6. 必须返回有效的坐标，格式："row,col"'
                         },
                         {
                             role: 'user',
@@ -661,6 +691,7 @@ class StoneMind {
             const data = await response.json();
             const moveText = data.choices[0].message.content.trim();
             console.log('AI原始回复:', moveText);
+            this.showDebugInfo(`AI回复: "${moveText}"`); // 在界面显示AI回复
 
             // 多种格式解析AI返回
             let match = moveText.match(/(\d+),(\d+)/);
@@ -673,20 +704,28 @@ class StoneMind {
                 const row = parseInt(match[1]);
                 const col = parseInt(match[2]);
                 console.log(`解析坐标: row=${row}, col=${col}`);
+                this.showDebugInfo(`解析坐标: (${row},${col})`); // 在界面显示解析结果
                 
                 // 详细检查为什么无效
                 if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
-                    const debugMsg = `坐标超出范围(${row},${col})`;
+                    const debugMsg = `坐标超出范围(${row},${col})，范围应为0-${this.boardSize-1}`;
                     console.log('降级原因:', debugMsg);
-                    this.showDebugInfo(`AI降级: ${debugMsg}`);
+                    this.showDebugInfo(`AI降级: ${debugMsg} | AI回复:"${moveText}"`);
                     this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                     return this.getSmartMove();
                 }
                 
                 if (this.board[row][col] !== null) {
-                    const debugMsg = `位置已占用(${row},${col})`;
+                    const occupiedBy = this.board[row][col];
+                    const debugMsg = `位置已占用(${row},${col})被${occupiedBy}占用`;
                     console.log('降级原因:', debugMsg);
-                    this.showDebugInfo(`AI降级: ${debugMsg}`);
+                    console.log('完整棋盘状态:', this.board);
+                    console.log('AI的原始回复:', moveText);
+                    console.log('发送给AI的棋盘状态:');
+                    console.log(boardState);
+                    
+                    // 在界面显示详细调试信息
+                    this.showDebugInfo(`AI降级: ${debugMsg} | AI回复:"${moveText}" | 当前第${row}行${col}列有${occupiedBy}子`);
                     this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                     return this.getSmartMove();
                 }
@@ -694,17 +733,18 @@ class StoneMind {
                 if (this.isSuicideMove(row, col, this.aiColor)) {
                     const debugMsg = `自杀手(${row},${col})`;
                     console.log('降级原因:', debugMsg);
-                    this.showDebugInfo(`AI降级: ${debugMsg}`);
+                    this.showDebugInfo(`AI降级: ${debugMsg} | AI回复:"${moveText}"`);
                     this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                     return this.getSmartMove();
                 }
                 
                 console.log(`AI选择: (${row},${col}) - 有效`);
+                this.showDebugInfo(`✅ AI成功选择: (${row},${col})`); // 在界面显示成功选择
                 return { row, col };
             } else {
                 const debugMsg = `解析失败:"${moveText}"`;
                 console.log('降级原因:', debugMsg);
-                this.showDebugInfo(`AI降级: ${debugMsg}`);
+                this.showDebugInfo(`AI降级: ${debugMsg} | 无法从"${moveText}"中解析出坐标`);
                 this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                 return this.getSmartMove();
             }
@@ -833,26 +873,32 @@ class StoneMind {
         const lastMove = this.gameHistory.length > 0 ? this.gameHistory[this.gameHistory.length - 1] : null;
         const moveCount = this.gameHistory.length;
         
-        let prompt = `你是专业围棋AI。分析局面选择最佳落子。只返回坐标: row,col\n\n`;
+        let prompt = `【围棋对局】9x9棋盘，请选择最佳落子位置。\n\n`;
         
-        // 根据局面阶段给出不同策略 (针对9x9棋盘优化)
-        if (moveCount < 8) {
-            prompt += `开局阶段策略：优先占角(2,2)(2,6)(6,2)(6,6)、控制中心(4,4)、抢边星位。\n`;
-        } else if (moveCount < 20) {
-            prompt += `中盘阶段策略：攻击对方孤子、连接己方棋子、争夺要点、扩张势力。\n`;
-        } else {
-            prompt += `收官阶段策略：围地、官子价值计算、精确计算、争夺边角。\n`;
-        }
+        prompt += `【棋盘状态】(行列坐标从0开始，B=黑子，W=白子，.=空位)：\n${boardState}`;
         
-        prompt += `棋盘(9x9，B=黑子，W=白子，.=空位)：\n${boardState}`;
+        prompt += `\n【重要规则】：\n`;
+        prompt += `- 坐标格式：row,col (例如：3,4)\n`;
+        prompt += `- 坐标范围：0-8\n`;
+        prompt += `- 只能选择空位(.)\n`;
+        prompt += `- 不能选择已占用位置(B或W)\n`;
         
         if (lastMove) {
-            prompt += `\n对方刚下: ${lastMove.color === 'black' ? '黑子' : '白子'} (${lastMove.row},${lastMove.col})`;
+            prompt += `\n【上一手】：${lastMove.color === 'black' ? '黑子' : '白子'}下在(${lastMove.row},${lastMove.col})`;
         }
         
-        // 添加战术提示
-        prompt += `\n你是${this.aiColor === 'black' ? '黑子' : '白子'}。重点考虑：`;
-        prompt += `\n1.能否吃掉对方棋子 2.避免己方被吃 3.连接己方棋子 4.占据要点`;
+        prompt += `\n【你的颜色】：${this.aiColor === 'black' ? '黑子(B)' : '白子(W)'}`;
+        
+        // 根据局面阶段给出不同策略
+        if (moveCount < 8) {
+            prompt += `\n【策略建议】：开局优先占角(2,2)(2,6)(6,2)(6,6)或中心(4,4)`;
+        } else if (moveCount < 20) {
+            prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
+        } else {
+            prompt += `\n【策略建议】：围地收官、计算官子价值`;
+        }
+        
+        prompt += `\n\n请分析棋盘，选择最佳空位，只返回坐标：row,col`;
         
         return prompt;
     }
