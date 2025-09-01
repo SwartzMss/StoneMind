@@ -324,7 +324,46 @@ class StoneMind {
         if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
             return false;
         }
-        return this.board[row][col] === null;
+        if (this.board[row][col] !== null) {
+            return false;
+        }
+        
+        // 检查是否为自杀手（临时放置棋子来检测）
+        return !this.isSuicideMove(row, col, this.currentPlayer);
+    }
+
+    // 检查是否为自杀手
+    isSuicideMove(row, col, color) {
+        // 临时放置棋子
+        this.board[row][col] = color;
+        
+        const opponentColor = color === 'black' ? 'white' : 'black';
+        let canCapture = false;
+        
+        // 检查是否能吃掉对方棋子
+        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        for (const [dr, dc] of directions) {
+            const newRow = row + dr;
+            const newCol = col + dc;
+            
+            if (this.isInBounds(newRow, newCol) && this.board[newRow][newCol] === opponentColor) {
+                const opponentGroup = this.getGroup(newRow, newCol);
+                if (!this.hasLiberties(opponentGroup)) {
+                    canCapture = true;
+                    break;
+                }
+            }
+        }
+        
+        // 检查自己的棋子群是否有气
+        const myGroup = this.getGroup(row, col);
+        const hasMyLiberties = this.hasLiberties(myGroup);
+        
+        // 移除临时棋子
+        this.board[row][col] = null;
+        
+        // 如果能吃掉对方棋子，或者自己有气，则不是自杀
+        return !canCapture && !hasMyLiberties;
     }
 
     makeMove(row, col, color) {
@@ -585,6 +624,11 @@ class StoneMind {
 
     getRandomValidMove() {
         const validMoves = [];
+        
+        // 临时保存当前玩家，因为isValidMove使用this.currentPlayer
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.aiColor;
+        
         for (let row = 0; row < this.boardSize; row++) {
             for (let col = 0; col < this.boardSize; col++) {
                 if (this.isValidMove(row, col)) {
@@ -592,6 +636,9 @@ class StoneMind {
                 }
             }
         }
+        
+        // 恢复原来的当前玩家
+        this.currentPlayer = originalPlayer;
         
         if (validMoves.length > 0) {
             return validMoves[Math.floor(Math.random() * validMoves.length)];
