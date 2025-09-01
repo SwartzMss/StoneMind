@@ -1364,38 +1364,6 @@ class StoneMind {
         return safe;
     }
 
-    // 获取当前可用的重要战略位置
-    getAvailableStrategicMoves() {
-        // 使用统一的战略位置定义，只取前9个最重要的位置用于提示
-        const mainStrategicPositions = this.strategicPositions
-            .filter(item => item.priority <= 3) // 只取天元、星位、边星
-            .sort((a, b) => a.priority - b.priority); // 按优先级排序
-        
-        const availableMoves = [];
-        this.addLog('🔍 开始检查战略位置...', 'info');
-        
-        for (const { pos, name } of mainStrategicPositions) {
-            const [row, col] = pos;
-            const cellState = this.board[row][col];
-            const isValid = this.isValidMove(row, col);
-            
-            // 调试信息：记录每个战略位置的状态
-            this.addLog(`战略位置检查: ${name} -> 棋盘状态: ${cellState || '空'}, 有效性: ${isValid}`, 'info');
-            
-            if (cellState === null && isValid) {  // 位置空闲且合法
-                availableMoves.push(name);
-                this.addLog(`✅ ${name} 可用`, 'success');
-            } else {
-                // 记录为什么这个位置不可用
-                const reason = cellState !== null ? `已被${cellState}占用` : '无效移动';
-                this.addLog(`❌ ${name} 不可用: ${reason}`, 'warning');
-            }
-        }
-        
-        this.addLog(`最终可用战略位置: ${availableMoves.length > 0 ? availableMoves.join('、') : '无'}`, 'info');
-        return availableMoves;
-    }
-
     getMoveNotation(row, col) {
         // 9路棋盘的记谱法
         const letters = 'ABCDEFGHJ'; // 9路棋盘只需要9个字母，去掉I
