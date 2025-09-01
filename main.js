@@ -717,7 +717,7 @@ class StoneMind {
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
             const debugMsg = `API错误:${error.message.substring(0,20)}`;
-            this.showAIStrategy(`❌ ${debugMsg}`, 'error');
+            this.showDebugInfo(`详细: ${debugMsg} | 完整错误: ${error.message}`);
             throw error; // 重新抛出错误，让上层处理重试
         }
     }
@@ -803,7 +803,7 @@ class StoneMind {
         // 检查坐标范围
         if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
             const reason = `坐标超出范围(${row},${col})，范围应为0-${this.boardSize-1}`;
-            this.showAIStrategy(`🔍 ${reason}`, 'fallback');
+            this.showDebugInfo(`详细: ${reason}`);
             return { isValid: false, reason };
         }
         
@@ -815,14 +815,14 @@ class StoneMind {
             console.log('AI的原始回复:', originalResponse);
             console.log('发送给AI的棋盘状态:');
             console.log(boardState);
-            this.showAIStrategy(`🔍 ${reason}`, 'fallback');
+            this.showDebugInfo(`详细: ${reason} | AI回复:"${originalResponse}"`);
             return { isValid: false, reason };
         }
         
         // 检查是否为自杀手
         if (this.isSuicideMove(row, col, this.aiColor)) {
             const reason = `自杀手(${row},${col})`;
-            this.showAIStrategy(`🔍 ${reason}`, 'fallback');
+            this.showDebugInfo(`详细: ${reason}`);
             return { isValid: false, reason };
         }
         
