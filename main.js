@@ -17,6 +17,7 @@ class StoneMind {
         this.captureWinThreshold = 8; // 吃子获胜阈值
         this.debugMode = false; // 调试模式开关
         this._debugInfoTimer = null; // 调试信息隐藏定时器
+        this._autoHideDebug = false; // 是否自动隐藏调试信息（默认不隐藏，避免闪烁）
         
         // 统一的战略位置定义，避免重复代码
         this.strategicPositions = [
@@ -676,8 +677,12 @@ class StoneMind {
             if (this.debugMode) {
                 debugPanel.style.display = 'block';
                 this.addLog('🔧 调试模式已开启', 'success');
+                const debugInfo = document.getElementById('debug-info');
+                if (debugInfo) debugInfo.style.display = 'block';
             } else {
                 debugPanel.style.display = 'none';
+                const debugInfo = document.getElementById('debug-info');
+                if (debugInfo) debugInfo.style.display = 'none';
             }
         });
         
@@ -754,13 +759,16 @@ class StoneMind {
         if (!debugElement) return;
         debugElement.style.display = 'block';
         debugElement.innerHTML = html;
+        // 默认不自动隐藏，避免元素反复消失造成布局跳变
         if (this._debugInfoTimer) {
             clearTimeout(this._debugInfoTimer);
             this._debugInfoTimer = null;
         }
-        this._debugInfoTimer = setTimeout(() => {
-            debugElement.style.display = 'none';
-        }, durationMs);
+        if (this._autoHideDebug && durationMs && durationMs > 0) {
+            this._debugInfoTimer = setTimeout(() => {
+                debugElement.style.display = 'none';
+            }, durationMs);
+        }
     }
 
     // 显示AI策略状态在机器人区域
