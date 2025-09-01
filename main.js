@@ -1,7 +1,7 @@
 class StoneMind {
     constructor() {
-        this.boardSize = 19;
-        this.cellSize = 40;
+        this.boardSize = 9; // 固定为9x9棋盘
+        this.cellSize = 50; // 9x9棋盘可以用更大的格子
         this.board = [];
         this.gameHistory = [];
         this.currentPlayer = 'black'; // 'black' or 'white'
@@ -13,6 +13,8 @@ class StoneMind {
         this.gameActive = false;
         this.aiThinking = false;
         this.previewMove = null; // 预览位置 {row, col}
+        this.hoverMove = null; // 鼠标悬停预览位置
+        this.isLandscape = false; // 是否横屏
         
         this.canvas = document.getElementById('board');
         this.ctx = this.canvas.getContext('2d');
@@ -20,6 +22,88 @@ class StoneMind {
         this.initializeBoard();
         this.bindEvents();
         this.updateDisplay();
+        this.handleOrientationChange();
+        this.requestLandscapeMode();
+    }
+
+    async requestLandscapeMode() {
+        // 尝试使用 Screen Orientation API 锁定横屏
+        if (screen.orientation && screen.orientation.lock) {
+            try {
+                await screen.orientation.lock('landscape');
+                console.log('成功锁定为横屏模式');
+            } catch (error) {
+                console.log('无法锁定屏幕方向:', error.message);
+                // 如果无法锁定，显示强制横屏提示
+                this.showLandscapeRequest();
+            }
+        } else {
+            console.log('浏览器不支持屏幕方向锁定API');
+            this.showLandscapeRequest();
+        }
+    }
+
+    showLandscapeRequest() {
+        // 如果是移动设备且为竖屏，显示横屏请求
+        if (this.isMobileDevice() && !this.isLandscape) {
+            const requestElement = document.getElementById('landscape-request') || this.createLandscapeRequest();
+            requestElement.style.display = 'flex';
+        }
+    }
+
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.innerWidth <= 768 && 'ontouchstart' in window);
+    }
+
+    createLandscapeRequest() {
+        const request = document.createElement('div');
+        request.id = 'landscape-request';
+        request.innerHTML = `
+            <div class="landscape-message">
+                <div class="phone-icon">📱➡️📱</div>
+                <h3>请旋转设备</h3>
+                <p>为了获得最佳围棋体验，请将设备旋转为横屏模式</p>
+                <button id="force-landscape-btn" class="force-btn">强制横屏显示</button>
+                <button id="continue-portrait-btn" class="continue-btn">继续竖屏模式</button>
+            </div>
+        `;
+        
+        request.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            color: white;
+            text-align: center;
+            font-family: inherit;
+        `;
+        
+        document.body.appendChild(request);
+        
+        // 绑定按钮事件
+        document.getElementById('force-landscape-btn').addEventListener('click', () => {
+            this.enableForceLandscape();
+            request.style.display = 'none';
+        });
+        
+        document.getElementById('continue-portrait-btn').addEventListener('click', () => {
+            request.style.display = 'none';
+        });
+        
+        return request;
+    }
+
+    enableForceLandscape() {
+        document.body.classList.add('force-landscape');
+        document.querySelector('.container')?.classList.add('rotated');
+        this.showRotationTip();
     }
 
     initializeBoard() {
@@ -31,6 +115,7 @@ class StoneMind {
         this.gameActive = true;
         this.aiThinking = false;
         this.previewMove = null;
+        this.hoverMove = null;
         
         this.updateCanvasSize();
         this.drawBoard();
@@ -41,26 +126,44 @@ class StoneMind {
     updateCanvasSize() {
         const padding = 30;
         const totalSize = this.boardSize * this.cellSize + padding * 2;
-        this.canvas.width = totalSize;
-        this.canvas.height = totalSize;
+        
+        // 获取设备像素比
+        const dpr = window.devicePixelRatio || 1;
+        
+        // 设置Canvas的实际像素尺寸（考虑设备像素比）
+        this.canvas.width = totalSize * dpr;
+        this.canvas.height = totalSize * dpr;
+        
+        // 设置Canvas的显示尺寸
         this.canvas.style.width = totalSize + 'px';
         this.canvas.style.height = totalSize + 'px';
+        
+        // 缩放绘图上下文以匹配设备像素比
+        this.ctx.scale(dpr, dpr);
+        
+        console.log('Canvas尺寸设置:', {
+            总尺寸: totalSize,
+            设备像素比: dpr,
+            实际像素: `${this.canvas.width}x${this.canvas.height}`,
+            显示尺寸: `${totalSize}x${totalSize}`,
+            格子大小: this.cellSize
+        });
     }
 
     bindEvents() {
-        // 棋盘点击事件 - 使用 pointerdown 支持触控
+        // 棋盘点击事件 - 同时支持触摸和鼠标事件
         this.canvas.addEventListener('pointerdown', (e) => this.handleBoardClick(e));
+        this.canvas.addEventListener('touchstart', (e) => this.handleBoardClick(e), { passive: false });
+        
+        // 鼠标悬停预览
+        this.canvas.addEventListener('mousemove', (e) => this.handleBoardHover(e));
+        this.canvas.addEventListener('mouseleave', () => this.clearHoverPreview());
         
         // 控制按钮事件
         document.getElementById('new-game').addEventListener('click', () => this.newGame());
         document.getElementById('test-api').addEventListener('click', () => this.testApiKey());
         
         // 设置变更事件
-        document.getElementById('board-size').addEventListener('change', (e) => {
-            this.boardSize = parseInt(e.target.value);
-            this.newGame();
-        });
-        
         document.getElementById('player-color').addEventListener('change', (e) => {
             this.playerColor = e.target.value;
             this.aiColor = e.target.value === 'black' ? 'white' : 'black';
@@ -72,6 +175,16 @@ class StoneMind {
             this.apiKey = e.target.value.trim();
             // 清除之前的状态显示
             this.clearApiStatus();
+        });
+
+        // 屏幕方向变化事件
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => this.handleOrientationChange(), 100);
+        });
+        
+        // 窗口大小变化事件
+        window.addEventListener('resize', () => {
+            this.handleOrientationChange();
         });
     }
 
@@ -145,6 +258,181 @@ class StoneMind {
         statusDiv.classList.add('hidden');
     }
 
+    handleOrientationChange() {
+        // 获取屏幕信息
+        const screenWidth = window.screen.width;
+        const screenHeight = window.screen.height;
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        // 检测是否为横屏
+        const wasLandscape = this.isLandscape;
+        this.isLandscape = windowWidth > windowHeight;
+        
+        console.log('屏幕信息:', {
+            screenSize: `${screenWidth}x${screenHeight}`,
+            windowSize: `${windowWidth}x${windowHeight}`,
+            orientation: this.isLandscape ? '横屏' : '竖屏',
+            devicePixelRatio: window.devicePixelRatio
+        });
+        
+        // 强制横屏逻辑
+        this.enforceOrientation();
+        
+        // 如果方向发生变化，显示提示并调整布局
+        if (wasLandscape !== this.isLandscape) {
+            this.showOrientationTip();
+        }
+        
+        // 调整棋盘大小以适应屏幕
+        this.adjustBoardSize();
+        
+        // 重新绘制棋盘
+        this.updateCanvasSize();
+        this.drawBoard();
+    }
+
+    enforceOrientation() {
+        const body = document.body;
+        const container = document.querySelector('.container');
+        const landscapeRequest = document.getElementById('landscape-request');
+        
+        if (!this.isLandscape && this.isMobileDevice()) {
+            // 移动设备竖屏时显示横屏请求（除非用户已经选择强制横屏）
+            if (!body.classList.contains('force-landscape') && landscapeRequest) {
+                landscapeRequest.style.display = 'flex';
+            }
+        } else {
+            // 横屏时隐藏请求界面并移除强制旋转
+            if (landscapeRequest) {
+                landscapeRequest.style.display = 'none';
+            }
+            body.classList.remove('force-landscape');
+            if (container) {
+                container.classList.remove('rotated');
+            }
+        }
+    }
+
+    showRotationTip() {
+        const tipElement = document.getElementById('rotation-tip') || this.createRotationTip();
+        tipElement.style.display = 'block';
+        
+        // 5秒后自动隐藏提示
+        setTimeout(() => {
+            tipElement.style.display = 'none';
+        }, 5000);
+    }
+
+    createRotationTip() {
+        const tip = document.createElement('div');
+        tip.id = 'rotation-tip';
+        tip.innerHTML = '🔄 自动旋转为横屏模式以获得最佳游戏体验';
+        tip.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(52, 152, 219, 0.95);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 10000;
+            display: none;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            animation: bounceIn 0.5s ease-out;
+        `;
+        
+        // 添加动画样式
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes bounceIn {
+                0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+                50% { transform: translate(-50%, -50%) scale(1.1); }
+                100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        document.body.appendChild(tip);
+        return tip;
+    }
+
+    showOrientationTip() {
+        const tipElement = document.getElementById('orientation-tip') || this.createOrientationTip();
+        
+        if (this.isLandscape) {
+            tipElement.textContent = '🎯 横屏模式，最佳围棋体验！';
+            tipElement.className = 'orientation-tip landscape';
+        } else {
+            tipElement.textContent = '📱 建议旋转为横屏以获得更好的下棋体验';
+            tipElement.className = 'orientation-tip portrait';
+        }
+        
+        tipElement.style.display = 'block';
+        
+        // 3秒后自动隐藏提示
+        setTimeout(() => {
+            tipElement.style.display = 'none';
+        }, 3000);
+    }
+
+    createOrientationTip() {
+        const tip = document.createElement('div');
+        tip.id = 'orientation-tip';
+        tip.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 1000;
+            display: none;
+            text-align: center;
+            max-width: 90%;
+        `;
+        document.body.appendChild(tip);
+        return tip;
+    }
+
+    adjustBoardSize() {
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        // 为界面控件预留空间
+        const reservedWidth = this.isLandscape ? 300 : 50; // 横屏时为左右控件预留更多空间
+        const reservedHeight = this.isLandscape ? 50 : 200; // 竖屏时为上下控件预留更多空间
+        
+        const availableWidth = windowWidth - reservedWidth;
+        const availableHeight = windowHeight - reservedHeight;
+        
+        // 计算最佳格子大小
+        const maxCellSize = Math.min(
+            availableWidth / (this.boardSize + 1),
+            availableHeight / (this.boardSize + 1)
+        );
+        
+        // 设置合适的格子大小范围（9x9棋盘可以更大）
+        if (this.isLandscape) {
+            this.cellSize = Math.max(35, Math.min(60, maxCellSize));
+        } else {
+            this.cellSize = Math.max(30, Math.min(50, maxCellSize));
+        }
+        
+        console.log('棋盘调整:', {
+            cellSize: this.cellSize,
+            availableSpace: `${availableWidth}x${availableHeight}`,
+            boardSize: this.boardSize
+        });
+    }
+
     setupAvatars() {
         // 艾莎头像 (Base64 编码的简化卡通头像)
         const elsaAvatar = "data:image/svg+xml;base64," + btoa(`
@@ -192,29 +480,106 @@ class StoneMind {
             return;
         }
         
+        // 阻止默认触摸行为
+        e.preventDefault();
+        
+        const rect = this.canvas.getBoundingClientRect();
+        
+        // 获取触摸点坐标，支持触摸和鼠标事件
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        
+        // 计算相对于Canvas的坐标
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        
+        // 计算棋盘坐标，考虑边距
+        const padding = 30;
+        const col = Math.round((x - padding) / this.cellSize);
+        const row = Math.round((y - padding) / this.cellSize);
+        
+        console.log('点击调试信息:', {
+            原始坐标: { clientX, clientY },
+            Canvas区域: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+            Canvas坐标: { x, y },
+            格子大小: this.cellSize,
+            棋盘坐标: { row, col },
+            设备像素比: window.devicePixelRatio || 1
+        });
+        
+        if (!this.isValidPosition(row, col)) {
+            console.log('无效位置:', { row, col, boardSize: this.boardSize });
+            return;
+        }
+        
+        // 检测输入类型
+        const isTouch = e.touches || e.changedTouches || e.pointerType === 'touch' || this.isMobileDevice();
+        
+        if (isTouch) {
+            // 触摸模式：使用两步确认
+            if (this.previewMove && this.previewMove.row === row && this.previewMove.col === col) {
+                // 确认落子
+                if (this.isValidMove(row, col)) {
+                    this.previewMove = null;
+                    this.makeMove(row, col, this.currentPlayer);
+                }
+            } else {
+                // 设置预览
+                if (this.isValidMove(row, col)) {
+                    this.previewMove = { row, col };
+                    this.drawBoard();
+                }
+            }
+        } else {
+            // 鼠标模式：直接落子
+            if (this.isValidMove(row, col)) {
+                this.hoverMove = null; // 清除悬停预览
+                this.makeMove(row, col, this.currentPlayer);
+            }
+        }
+    }
+
+    handleBoardHover(e) {
+        // 只在鼠标模式下显示悬停预览（非触摸设备）
+        if (!this.gameActive || this.aiThinking || this.currentPlayer !== this.playerColor) {
+            return;
+        }
+        
+        // 检测是否为鼠标事件（不是触摸）
+        if (e.pointerType === 'touch' || this.isMobileDevice()) {
+            return;
+        }
+        
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
-        const col = Math.round((x - 30) / this.cellSize);
-        const row = Math.round((y - 30) / this.cellSize);
+        const padding = 30;
+        const col = Math.round((x - padding) / this.cellSize);
+        const row = Math.round((y - padding) / this.cellSize);
         
-        if (!this.isValidPosition(row, col)) {
-            return;
-        }
-        
-        // 如果点击的是已经预览的位置，确认落子
-        if (this.previewMove && this.previewMove.row === row && this.previewMove.col === col) {
-            if (this.isValidMove(row, col)) {
-                this.previewMove = null; // 清除预览
-                this.makeMove(row, col, this.currentPlayer);
-            }
+        if (this.isValidPosition(row, col) && this.isValidMove(row, col)) {
+            // 设置悬停预览（与点击预览不同）
+            this.hoverMove = { row, col };
+            this.drawBoard();
         } else {
-            // 否则设置新的预览位置
-            if (this.isValidMove(row, col)) {
-                this.previewMove = { row, col };
-                this.drawBoard(); // 重绘棋盘以显示预览
-            }
+            this.clearHoverPreview();
+        }
+    }
+
+    clearHoverPreview() {
+        if (this.hoverMove) {
+            this.hoverMove = null;
+            this.drawBoard();
         }
     }
 
@@ -460,10 +825,10 @@ class StoneMind {
         const currentMove = this.gameHistory.length + 1;
         const lastMove = this.gameHistory.length > 0 ? this.gameHistory[this.gameHistory.length - 1] : null;
         
-        let prompt = `你是一位围棋高手。请分析当前局面并选择最佳落子位置。
+        let prompt = `你是一位9路围棋专家。9路围棋节奏快、战斗激烈，需要精确计算。请分析当前局面并选择最佳落子位置。
 
 === 棋局信息 ===
-棋盘大小: ${this.boardSize}x${this.boardSize}
+棋盘大小: 9x9（小棋盘）
 当前手数: 第${currentMove}手
 轮到: ${this.aiColor === 'black' ? '黑子' : '白子'}`;
 
@@ -478,22 +843,27 @@ class StoneMind {
 
 ${boardState}
 
-=== 请求 ===
-请分析局面并选择最佳落子位置。考虑因素包括：
-1. 攻击对方弱棋
-2. 保护自己的棋子
-3. 抢占要点
-4. 围地或破坏对方领域
+=== 9路围棋策略要点 ===
+1. **开局阶段（1-15手）**: 抢占角隅要点，如星位(2,2)、(2,6)、(6,2)、(6,6)和天元(4,4)
+2. **中盘阶段（15-40手）**: 主动寻求战斗，攻击对方薄弱棋组，建立实地
+3. **收官阶段（40手+）**: 精确计算官子价值，争夺边角地盘
 
-请直接返回坐标格式: row,col (例如: 3,4)`;
+=== 当前局面分析重点 ===
+- 棋盘较小，每一手都很重要
+- 优先考虑攻击和防守
+- 关注对方棋子的气数和连接
+- 9路棋盘容错率低，避免过度冒险
+
+请直接返回坐标格式: row,col (例如: 2,4)`;
 
         return prompt;
     }
 
     getMoveNotation(row, col) {
-        const letters = 'ABCDEFGHJKLMNOPQRS'; // 注意：围棋记谱法中没有I
+        // 9路棋盘的记谱法
+        const letters = 'ABCDEFGHJ'; // 9路棋盘只需要9个字母，去掉I
         const letter = letters[col];
-        const number = this.boardSize - row;
+        const number = this.boardSize - row; // 9-row
         return `${letter}${number}`;
     }
 
@@ -540,14 +910,8 @@ ${boardState}
             ctx.stroke();
         }
         
-        // 绘制星位（天元等特殊点）
-        if (this.boardSize === 19) {
-            this.drawStarPoints(ctx, padding, [3, 9, 15]);
-        } else if (this.boardSize === 13) {
-            this.drawStarPoints(ctx, padding, [3, 6, 9]);
-        } else if (this.boardSize === 9) {
-            this.drawStarPoints(ctx, padding, [2, 4, 6]);
-        }
+        // 绘制星位（9x9棋盘的星位）
+        this.drawStarPoints(ctx, padding, [2, 4, 6]);
         
         // 绘制棋子
         for (let row = 0; row < this.boardSize; row++) {
@@ -559,9 +923,14 @@ ${boardState}
             }
         }
         
-        // 绘制预览位置
+        // 绘制预览位置（触摸确认模式）
         if (this.previewMove && this.currentPlayer === this.playerColor) {
             this.drawPreviewStone(ctx, padding + this.previewMove.col * this.cellSize, padding + this.previewMove.row * this.cellSize, this.currentPlayer);
+        }
+        
+        // 绘制鼠标悬停预览（桌面模式）
+        if (this.hoverMove && this.currentPlayer === this.playerColor && !this.previewMove) {
+            this.drawHoverStone(ctx, padding + this.hoverMove.col * this.cellSize, padding + this.hoverMove.row * this.cellSize, this.currentPlayer);
         }
         
         // 高亮最后一步
@@ -651,6 +1020,29 @@ ${boardState}
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(x, y, radius + 8, 0, 2 * Math.PI);
+        ctx.stroke();
+        
+        // 恢复透明度
+        ctx.globalAlpha = 1.0;
+    }
+
+    drawHoverStone(ctx, x, y, color) {
+        const radius = this.cellSize * 0.4;
+        
+        // 绘制更淡的悬停预览棋子
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        
+        if (color === 'black') {
+            ctx.fillStyle = '#333';
+        } else {
+            ctx.fillStyle = '#ddd';
+        }
+        
+        ctx.fill();
+        ctx.strokeStyle = color === 'black' ? '#000' : '#999';
+        ctx.lineWidth = 1;
         ctx.stroke();
         
         // 恢复透明度
