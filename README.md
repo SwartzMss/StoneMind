@@ -32,13 +32,21 @@
 
 ## 🚀 使用方式  
 
-### 1. 克隆项目  
+### 方式一：在线体验（推荐）
+直接访问 GitHub Pages 在线版本：
+```
+https://yourname.github.io/StoneMind/
+```
+> 📝 注意：API Key 仅在浏览器内存中使用，不会被保存或上传到任何服务器
+
+### 方式二：本地部署
+#### 1. 克隆项目  
 ```bash
 git clone https://github.com/yourname/StoneMind.git
 cd StoneMind
 ```
 
-### 2. 打开页面  
+#### 2. 打开页面  
 无需安装依赖，也无需后端。  
 直接用浏览器打开：  
 
@@ -48,6 +56,21 @@ index.html
 
 ### 3. 输入 API Key  
 在界面上输入你的 **DeepSeek API Key**，点击"测试连接"验证有效性，然后就可以开始对弈。  
+
+---
+
+## 🌐 GitHub Pages 部署
+
+### 一键部署到 GitHub Pages
+1. Fork 这个项目到你的 GitHub 账户
+2. 在项目设置中启用 GitHub Pages
+3. 选择 `main` 分支作为源
+4. 几分钟后即可通过 `https://yourusername.github.io/StoneMind/` 访问
+
+### 🔒 隐私安全
+- **API Key 安全**：所有 API Key 仅在浏览器本地使用，不会被保存、缓存或传输到 GitHub
+- **纯前端架构**：无服务器端，无数据库，无用户数据收集
+- **HTTPS 加密**：GitHub Pages 提供 HTTPS，确保 API 通信安全
 
 ---
 
@@ -93,8 +116,20 @@ index.html
 - [ ] 支持自定义落子提示  
 - [ ] 增加多人围观模式  
 - [ ] AI 思考过程可视化（显示推荐点）  
-- [ ] 添加更多 AI 模型支持  
+- [ ] 添加更多 AI 模型支持（Claude、GPT、文心一言等）  
 - [ ] 增加难度等级选择  
+- [ ] PWA 支持（可安装为手机应用）  
+
+---
+
+## 🛠️ 技术栈  
+
+- **前端框架**：纯 JavaScript (ES6+)  
+- **样式设计**：CSS3 + Flexbox + Grid  
+- **图形渲染**：HTML5 Canvas  
+- **API 通信**：Fetch API  
+- **部署方式**：GitHub Pages (静态托管)  
+- **兼容性**：现代浏览器 + 移动设备  
 
 ---
 
