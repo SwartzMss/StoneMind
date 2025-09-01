@@ -632,41 +632,41 @@ class StoneMind {
 
     // 在界面上显示调试信息（手机浏览器友好）
     showDebugInfo(message) {
-        const debugElement = document.getElementById('debug-info');
+        const debugElement = document.getElementById('ai-debug-info');
         if (debugElement) {
             debugElement.style.display = 'block';
-            debugElement.innerHTML = `<div style="font-size: 11px; line-height: 1.2;">[调试] ${message}</div>`;
-            // 20秒后自动隐藏，给更多时间查看
+            debugElement.innerHTML = `<div style="font-size: 10px; line-height: 1.2;">[调试] ${message}</div>`;
+            // 10秒后自动隐藏，减少干扰
             setTimeout(() => {
                 debugElement.style.display = 'none';
-            }, 20000);
+            }, 10000);
         }
     }
     
     // 显示棋盘状态给用户看（调试用）
     showBoardStateDebug() {
         const boardState = this.getBoardStateString();
-        const debugElement = document.getElementById('debug-info');
+        const debugElement = document.getElementById('ai-debug-info');
         if (debugElement) {
             debugElement.style.display = 'block';
-            debugElement.innerHTML = `<strong>AI看到的棋盘:</strong><br><pre style="font-size:10px; line-height:1;">${boardState}</pre>`;
-            // 15秒后自动隐藏
+            debugElement.innerHTML = `<strong>AI看到的棋盘:</strong><br><pre style="font-size:8px; line-height:1;">${boardState}</pre>`;
+            // 8秒后自动隐藏
             setTimeout(() => {
                 debugElement.style.display = 'none';
-            }, 15000);
+            }, 8000);
         }
     }
     
     // 显示完整的AI提示内容（调试用）
     showPromptDebug(prompt) {
-        const debugElement = document.getElementById('debug-info');
+        const debugElement = document.getElementById('ai-debug-info');
         if (debugElement) {
             debugElement.style.display = 'block';
-            debugElement.innerHTML = `<strong>发送给AI的完整提示:</strong><br><pre style="font-size:9px; line-height:1.1; max-height:200px; overflow-y:auto;">${prompt}</pre>`;
-            // 25秒后自动隐藏，给更多时间查看
+            debugElement.innerHTML = `<strong>发送给AI的完整提示:</strong><br><pre style="font-size:7px; line-height:1.1; max-height:50px; overflow-y:auto;">${prompt}</pre>`;
+            // 12秒后自动隐藏
             setTimeout(() => {
                 debugElement.style.display = 'none';
-            }, 25000);
+            }, 12000);
         }
     }
 
@@ -674,7 +674,6 @@ class StoneMind {
     showAIStrategy(message, type = 'thinking') {
         const strategyElement = document.getElementById('ai-strategy-display');
         console.log('显示AI策略:', message, type, strategyElement);
-        this.showDebugInfo(`策略更新: ${message} (类型: ${type})`);
         
         if (strategyElement) {
             strategyElement.innerHTML = `<span>策略: ${message}</span>`;
@@ -686,7 +685,6 @@ class StoneMind {
             console.log('策略显示已更新:', strategyElement.innerHTML);
         } else {
             console.error('找不到ai-strategy-display元素！');
-            this.showDebugInfo('错误: 找不到策略显示元素！');
         }
     }
 
@@ -694,7 +692,6 @@ class StoneMind {
     resetAIStrategy() {
         const strategyElement = document.getElementById('ai-strategy-display');
         console.log('重置AI策略显示:', strategyElement);
-        this.showDebugInfo('策略重置为AI模式');
         
         if (strategyElement) {
             strategyElement.innerHTML = '<span>策略: 🤖 AI模式</span>';
@@ -702,7 +699,6 @@ class StoneMind {
             console.log('策略显示已重置:', strategyElement.innerHTML);
         } else {
             console.error('找不到ai-strategy-display元素！');
-            this.showDebugInfo('错误: 找不到策略显示元素！');
         }
     }
 
