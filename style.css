@@ -469,3 +469,203 @@ header p {
     transition: opacity 0.2s;
     opacity: 0;
 }
+
+/* 日志窗口样式 */
+.log-window {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 350px;
+    max-height: 300px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    border: 1px solid #e0e0e0;
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    border-radius: 8px 8px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.clear-log-btn, .toggle-log-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-left: 5px;
+}
+
+.clear-log-btn:hover, .toggle-log-btn:hover {
+    background: #e9ecef;
+    color: #333;
+}
+
+.log-content {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 10px 15px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #444;
+}
+
+.log-entry {
+    margin-bottom: 5px;
+    padding: 3px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.log-entry.error {
+    color: #dc3545;
+    font-weight: 500;
+}
+
+.log-entry.success {
+    color: #28a745;
+}
+
+.log-entry.info {
+    color: #17a2b8;
+}
+
+.log-entry.warning {
+    color: #ffc107;
+}
+
+/* 日志窗口最小化状态 */
+.log-window.minimized .log-content {
+    display: none;
+}
+
+.log-window.minimized {
+    max-height: auto;
+}
+
+/* 调试开关样式 */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #667eea;
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* 底部调试面板样式 */
+.debug-panel {
+    width: 100%;
+    background: white;
+    border-top: 2px solid #e0e0e0;
+    margin-top: 20px;
+}
+
+.debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.debug-content {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 15px 20px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #444;
+    background: #fafafa;
+}
+
+.clear-log-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.clear-log-btn:hover {
+    background: #c82333;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .log-window {
+        width: 300px;
+        bottom: 10px;
+        right: 10px;
+        max-height: 200px;
+    }
+    
+    .log-content {
+        max-height: 140px;
+        font-size: 10px;
+    }
+    
+    .debug-content {
+        max-height: 150px;
+        padding: 10px 15px;
+        font-size: 11px;
+    }
+}
