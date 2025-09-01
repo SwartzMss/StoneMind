@@ -783,31 +783,38 @@ class StoneMind {
     // 调用DeepSeek API
     async callDeepSeekAPI(prompt) {
         this.addLog('🚀 开始API调用...', 'info');
+        
+        // 添加随机ID确保每次请求都是独立的
+        const requestId = Math.random().toString(36).substring(2, 15);
+        
         const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`
+                'Authorization': `Bearer ${this.apiKey}`,
+                'X-Request-ID': requestId  // 添加唯一请求ID
             },
             body: JSON.stringify({
                 model: 'deepseek-chat',
                 messages: [
                     {
                         role: 'system',
-                        content: '你是围棋AI。严格按照以下规则：\n1. 只能选择空位（棋盘上显示为.的位置）\n2. 坐标格式必须是"行号,列号"，例如"3,4"\n3. 行号和列号都是0-8之间的数字\n4. 不能选择已有棋子的位置（B或W）\n5. 不能下自杀手（除非能吃子）\n6. 必须返回有效的坐标，格式："row,col"'
+                        content: `你是围棋AI。请求ID: ${requestId}。严格按照以下规则：\n1. 只能选择空位（棋盘上显示为.的位置）\n2. 坐标格式必须是"行号,列号"，例如"3,4"\n3. 行号和列号都是0-8之间的数字\n4. 不能选择已有棋子的位置（B或W）\n5. 不能下自杀手（除非能吃子）\n6. 必须返回有效的坐标，格式："row,col"\n7. 每次分析都要重新检查棋盘状态，不要依赖任何之前的记忆`
                     },
                     {
                         role: 'user',
                         content: prompt
                     }
                 ],
-                temperature: 0.3,
+                temperature: 0.7,  // 增加随机性，避免相同输入产生相同输出
                 max_tokens: 50,
-                top_p: 0.8
+                top_p: 0.9,       // 增加随机性
+                presence_penalty: 0.1,  // 避免重复
+                frequency_penalty: 0.1  // 避免重复
             })
         });
 
-        this.addLog(`📡 API响应状态: ${response.status}`, response.ok ? 'success' : 'error');
+        this.addLog(`📡 API响应状态: ${response.status} (请求ID: ${requestId})`, response.ok ? 'success' : 'error');
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -870,9 +877,6 @@ class StoneMind {
             const occupiedBy = this.board[row][col];
             const reason = `位置已占用(${row},${col})被${occupiedBy}占用`;
             this.addLog(`❌ ${reason} | AI回复:"${originalResponse}"`, 'error');
-            this.addLog(`🔍 完整棋盘状态检查: ${JSON.stringify(this.board)}`, 'info');
-            this.addLog(`📤 发送给AI的棋盘状态:`, 'info');
-            this.addLog(boardState, 'info');
             return { isValid: false, reason };
         }
         
