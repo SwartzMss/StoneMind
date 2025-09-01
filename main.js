@@ -555,19 +555,27 @@ class StoneMind {
                 if (moveResult.success) {
                     break; // 成功下棋，跳出重试循环
                 }
+                
+                // 第一次失败时，如果还有重试机会，不显示失败状态
+                if (attempt < maxRetries) {
+                    console.log(`AI第${attempt + 1}次尝试失败，准备重试...`);
+                    this.showDebugInfo(`AI第${attempt + 1}次尝试失败，${maxRetries - attempt}秒后重试`);
+                    await this.delay(1000);
+                }
             } catch (error) {
                 console.error(`AI 下棋尝试 ${attempt + 1} 失败:`, error);
-                this.showAIStrategy('❌ 连接失败', 'error');
                 
+                // 只有在最后一次尝试失败时才显示错误状态
                 if (attempt === maxRetries) {
-                    // 最后一次尝试失败
+                    this.showAIStrategy('❌ 连接失败', 'error');
                     alert('AI 下棋失败，请检查 API Key 或网络连接');
                     break;
+                } else {
+                    // 第一次API错误时，显示重试信息但保持思考状态
+                    console.log(`API调用失败，准备重试...`);
+                    this.showDebugInfo(`API调用失败，${maxRetries - attempt}秒后重试`);
+                    await this.delay(1000);
                 }
-                
-                // 等待一秒后重试
-                this.showAIStrategy('🔄 正在重试...', 'thinking');
-                await this.delay(1000);
             }
         }
 
@@ -603,7 +611,10 @@ class StoneMind {
 
     // 处理AI下棋失败的情况
     handleAIMoveFailed() {
+        this.showDebugInfo(`AI两次尝试均失败，启动应急处理`);
+        
         if (!this.hasValidMoves()) {
+            this.showAIStrategy('🏁 游戏结束', 'info');
             this.checkGameEnd(); // 棋盘满了，正常结束游戏
         } else {
             // 棋盘未满但AI无法下棋，使用智能降级
@@ -613,6 +624,7 @@ class StoneMind {
                 this.showAIStrategy('🎯 智能降级', 'fallback');
                 this.showDebugInfo(`AI降级下棋: (${smartMove.row},${smartMove.col})`);
             } else {
+                this.showAIStrategy('❌ 完全失败', 'error');
                 alert('AI无有效落子，且智能降级也失败！');
             }
         }
