@@ -1278,7 +1278,7 @@ class StoneMind {
             } else {
                 prompt += `\n【策略建议】：所有重要特殊位置已被占用，从白名单中选择次要战略点`;
             }
-        } else if (moveCount < 20) {
+        } else if (moveCount < 10) {
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
         } else {
             prompt += `\n【策略建议】：围地收官、计算官子价值`;
