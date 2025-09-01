@@ -543,29 +543,78 @@ class StoneMind {
 
         this.aiThinking = true;
         this.updateDisplay();
-        // 开始思考时重置策略显示为默认状态
         this.resetAIStrategy();
 
-        try {
-            const move = await this.getAIMove();
-            if (move && this.isValidMove(move.row, move.col)) {
-                this.makeMove(move.row, move.col, this.aiColor);
-                // AI成功下棋，保持默认显示
-            } else {
-                // AI无有效落子，检查游戏结束
-                if (!this.hasValidMoves()) {
-                    this.checkGameEnd(); // 这会处理棋盘满的情况
-                } else {
-                    alert('AI无有效落子，但棋盘未满！');
+        // 尝试AI下棋，最多重试一次
+        const maxRetries = 1;
+        let moveResult = null;
+        
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                moveResult = await this.attemptAIMove(attempt);
+                if (moveResult.success) {
+                    break; // 成功下棋，跳出重试循环
                 }
+            } catch (error) {
+                console.error(`AI 下棋尝试 ${attempt + 1} 失败:`, error);
+                this.showAIStrategy('❌ 连接失败', 'error');
+                
+                if (attempt === maxRetries) {
+                    // 最后一次尝试失败
+                    alert('AI 下棋失败，请检查 API Key 或网络连接');
+                    break;
+                }
+                
+                // 等待一秒后重试
+                this.showAIStrategy('🔄 正在重试...', 'thinking');
+                await this.delay(1000);
             }
-        } catch (error) {
-            console.error('AI 下棋失败:', error);
-            this.showAIStrategy('❌ 连接失败', 'error');
-            alert('AI 下棋失败，请检查 API Key 或网络连接');
-        } finally {
-            this.aiThinking = false;
-            this.updateDisplay();
+        }
+
+        // 处理最终结果
+        if (!moveResult || !moveResult.success) {
+            this.handleAIMoveFailed();
+        }
+
+        this.aiThinking = false;
+        this.updateDisplay();
+    }
+
+    // 延迟函数
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 单次AI下棋尝试
+    async attemptAIMove(attemptNumber) {
+        this.showDebugInfo(`AI下棋尝试 ${attemptNumber + 1}`);
+        
+        const move = await this.getAIMove();
+        
+        if (move && this.isValidMove(move.row, move.col)) {
+            this.makeMove(move.row, move.col, this.aiColor);
+            this.showDebugInfo(`✅ AI成功下棋: (${move.row},${move.col})`);
+            return { success: true, move };
+        } else {
+            this.showDebugInfo(`❌ AI第${attemptNumber + 1}次尝试失败: 无有效落子`);
+            return { success: false, move };
+        }
+    }
+
+    // 处理AI下棋失败的情况
+    handleAIMoveFailed() {
+        if (!this.hasValidMoves()) {
+            this.checkGameEnd(); // 棋盘满了，正常结束游戏
+        } else {
+            // 棋盘未满但AI无法下棋，使用智能降级
+            const smartMove = this.getSmartMove();
+            if (smartMove && this.isValidMove(smartMove.row, smartMove.col)) {
+                this.makeMove(smartMove.row, smartMove.col, this.aiColor);
+                this.showAIStrategy('🎯 智能降级', 'fallback');
+                this.showDebugInfo(`AI降级下棋: (${smartMove.row},${smartMove.col})`);
+            } else {
+                alert('AI无有效落子，且智能降级也失败！');
+            }
         }
     }
 
@@ -650,111 +699,126 @@ class StoneMind {
         const prompt = this.generateGoPrompt(boardState);
         
         console.log('发送给AI的提示:', prompt);
-        this.showBoardStateDebug(); // 显示AI看到的棋盘状态
-        this.showPromptDebug(prompt); // 显示完整的提示内容
+        this.showBoardStateDebug();
+        this.showPromptDebug(prompt);
         this.showDebugInfo(`棋盘状态已获取，准备发送给AI`);
 
         try {
-            console.log('开始API调用...');
-            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'deepseek-chat',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: '你是围棋AI。严格按照以下规则：\n1. 只能选择空位（棋盘上显示为.的位置）\n2. 坐标格式必须是"行号,列号"，例如"3,4"\n3. 行号和列号都是0-8之间的数字\n4. 不能选择已有棋子的位置（B或W）\n5. 不能下自杀手（除非能吃子）\n6. 必须返回有效的坐标，格式："row,col"'
-                        },
-                        {
-                            role: 'user',
-                            content: prompt
-                        }
-                    ],
-                    temperature: 0.3,  // 降低随机性，提高一致性
-                    max_tokens: 50,    // 减少token，专注坐标
-                    top_p: 0.8        // 增加参数控制
-                })
-            });
-
-            console.log('API响应状态:', response.status);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API错误详情:', errorText);
-                throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
-            }
-
-            const data = await response.json();
-            const moveText = data.choices[0].message.content.trim();
-            console.log('AI原始回复:', moveText);
-            this.showDebugInfo(`AI回复: "${moveText}"`); // 在界面显示AI回复
-
-            // 多种格式解析AI返回
-            let match = moveText.match(/(\d+),(\d+)/);
-            if (!match) {
-                // 尝试其他格式: (row, col) 或 row col
-                match = moveText.match(/\((\d+),\s*(\d+)\)/) || moveText.match(/(\d+)\s+(\d+)/);
-            }
-            
-            if (match) {
-                const row = parseInt(match[1]);
-                const col = parseInt(match[2]);
-                console.log(`解析坐标: row=${row}, col=${col}`);
-                this.showDebugInfo(`解析坐标: (${row},${col})`); // 在界面显示解析结果
-                
-                // 详细检查为什么无效
-                if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
-                    const debugMsg = `坐标超出范围(${row},${col})，范围应为0-${this.boardSize-1}`;
-                    console.log('降级原因:', debugMsg);
-                    this.showDebugInfo(`AI降级: ${debugMsg} | AI回复:"${moveText}"`);
-                    this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
-                    return this.getSmartMove();
-                }
-                
-                if (this.board[row][col] !== null) {
-                    const occupiedBy = this.board[row][col];
-                    const debugMsg = `位置已占用(${row},${col})被${occupiedBy}占用`;
-                    console.log('降级原因:', debugMsg);
-                    console.log('完整棋盘状态:', this.board);
-                    console.log('AI的原始回复:', moveText);
-                    console.log('发送给AI的棋盘状态:');
-                    console.log(boardState);
-                    
-                    // 在界面显示详细调试信息
-                    this.showDebugInfo(`AI降级: ${debugMsg} | AI回复:"${moveText}" | 当前第${row}行${col}列有${occupiedBy}子`);
-                    this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
-                    return this.getSmartMove();
-                }
-                
-                if (this.isSuicideMove(row, col, this.aiColor)) {
-                    const debugMsg = `自杀手(${row},${col})`;
-                    console.log('降级原因:', debugMsg);
-                    this.showDebugInfo(`AI降级: ${debugMsg} | AI回复:"${moveText}"`);
-                    this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
-                    return this.getSmartMove();
-                }
-                
-                console.log(`AI选择: (${row},${col}) - 有效`);
-                this.showDebugInfo(`✅ AI成功选择: (${row},${col})`); // 在界面显示成功选择
-                return { row, col };
-            } else {
-                const debugMsg = `解析失败:"${moveText}"`;
-                console.log('降级原因:', debugMsg);
-                this.showDebugInfo(`AI降级: ${debugMsg} | 无法从"${moveText}"中解析出坐标`);
-                this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
-                return this.getSmartMove();
-            }
-
+            const apiResponse = await this.callDeepSeekAPI(prompt);
+            return this.parseAIMoveResponse(apiResponse, boardState);
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
             const debugMsg = `API错误:${error.message.substring(0,20)}`;
-            this.showAIStrategy(`� ${debugMsg}`, 'error');
-            return this.getSmartMove();
+            this.showAIStrategy(`❌ ${debugMsg}`, 'error');
+            throw error; // 重新抛出错误，让上层处理重试
         }
+    }
+
+    // 调用DeepSeek API
+    async callDeepSeekAPI(prompt) {
+        console.log('开始API调用...');
+        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [
+                    {
+                        role: 'system',
+                        content: '你是围棋AI。严格按照以下规则：\n1. 只能选择空位（棋盘上显示为.的位置）\n2. 坐标格式必须是"行号,列号"，例如"3,4"\n3. 行号和列号都是0-8之间的数字\n4. 不能选择已有棋子的位置（B或W）\n5. 不能下自杀手（除非能吃子）\n6. 必须返回有效的坐标，格式："row,col"'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.3,
+                max_tokens: 50,
+                top_p: 0.8
+            })
+        });
+
+        console.log('API响应状态:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API错误详情:', errorText);
+            throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    }
+
+    // 解析AI回复并验证移动
+    parseAIMoveResponse(moveText, boardState) {
+        console.log('AI原始回复:', moveText);
+        this.showDebugInfo(`AI回复: "${moveText}"`);
+
+        // 多种格式解析AI返回
+        let match = moveText.match(/(\d+),(\d+)/);
+        if (!match) {
+            // 尝试其他格式: (row, col) 或 row col
+            match = moveText.match(/\((\d+),\s*(\d+)\)/) || moveText.match(/(\d+)\s+(\d+)/);
+        }
+        
+        if (!match) {
+            const debugMsg = `解析失败:"${moveText}"`;
+            console.log('解析失败:', debugMsg);
+            this.showDebugInfo(`AI解析失败: ${debugMsg} | 无法从"${moveText}"中解析出坐标`);
+            return null;
+        }
+
+        const row = parseInt(match[1]);
+        const col = parseInt(match[2]);
+        console.log(`解析坐标: row=${row}, col=${col}`);
+        this.showDebugInfo(`解析坐标: (${row},${col})`);
+        
+        // 验证坐标有效性
+        const validationResult = this.validateAIMove(row, col, moveText, boardState);
+        if (validationResult.isValid) {
+            console.log(`AI选择: (${row},${col}) - 有效`);
+            this.showDebugInfo(`✅ AI成功选择: (${row},${col})`);
+            return { row, col };
+        } else {
+            console.log('AI移动无效:', validationResult.reason);
+            this.showDebugInfo(`AI移动无效: ${validationResult.reason}`);
+            return null;
+        }
+    }
+
+    // 验证AI移动的有效性
+    validateAIMove(row, col, originalResponse, boardState) {
+        // 检查坐标范围
+        if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
+            const reason = `坐标超出范围(${row},${col})，范围应为0-${this.boardSize-1}`;
+            this.showAIStrategy(`🔍 ${reason}`, 'fallback');
+            return { isValid: false, reason };
+        }
+        
+        // 检查位置是否已被占用
+        if (this.board[row][col] !== null) {
+            const occupiedBy = this.board[row][col];
+            const reason = `位置已占用(${row},${col})被${occupiedBy}占用`;
+            console.log('完整棋盘状态:', this.board);
+            console.log('AI的原始回复:', originalResponse);
+            console.log('发送给AI的棋盘状态:');
+            console.log(boardState);
+            this.showAIStrategy(`🔍 ${reason}`, 'fallback');
+            return { isValid: false, reason };
+        }
+        
+        // 检查是否为自杀手
+        if (this.isSuicideMove(row, col, this.aiColor)) {
+            const reason = `自杀手(${row},${col})`;
+            this.showAIStrategy(`🔍 ${reason}`, 'fallback');
+            return { isValid: false, reason };
+        }
+        
+        return { isValid: true };
     }
 
     // 智能降级策略（比随机好）
@@ -889,9 +953,14 @@ class StoneMind {
         
         prompt += `\n【你的颜色】：${this.aiColor === 'black' ? '黑子(B)' : '白子(W)'}`;
         
-        // 根据局面阶段给出不同策略
+        // 根据局面阶段给出不同策略，并检查推荐位置是否可用
         if (moveCount < 8) {
-            prompt += `\n【策略建议】：开局优先占角(2,2)(2,6)(6,2)(6,6)或中心(4,4)`;
+            const availableStrategicMoves = this.getAvailableStrategicMoves();
+            if (availableStrategicMoves.length > 0) {
+                prompt += `\n【策略建议】：开局优先选择：${availableStrategicMoves.join(' 或 ')}`;
+            } else {
+                prompt += `\n【策略建议】：开局阶段，选择边角要点或接近中心的位置`;
+            }
         } else if (moveCount < 20) {
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
         } else {
@@ -901,6 +970,31 @@ class StoneMind {
         prompt += `\n\n请分析棋盘，选择最佳空位，只返回坐标：row,col`;
         
         return prompt;
+    }
+
+    // 获取当前可用的重要战略位置
+    getAvailableStrategicMoves() {
+        const strategicPositions = [
+            { pos: [4, 4], name: '中心(4,4)' },      // 天元
+            { pos: [2, 2], name: '角(2,2)' },        // 左上角星位
+            { pos: [2, 6], name: '角(2,6)' },        // 右上角星位
+            { pos: [6, 2], name: '角(6,2)' },        // 左下角星位
+            { pos: [6, 6], name: '角(6,6)' },        // 右下角星位
+            { pos: [2, 4], name: '边(2,4)' },        // 上边星位
+            { pos: [4, 2], name: '边(4,2)' },        // 左边星位
+            { pos: [4, 6], name: '边(4,6)' },        // 右边星位
+            { pos: [6, 4], name: '边(6,4)' }         // 下边星位
+        ];
+        
+        const availableMoves = [];
+        for (const { pos, name } of strategicPositions) {
+            const [row, col] = pos;
+            if (this.board[row][col] === null) {  // 位置空闲
+                availableMoves.push(name);
+            }
+        }
+        
+        return availableMoves;
     }
 
     getMoveNotation(row, col) {
