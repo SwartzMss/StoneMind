@@ -572,19 +572,31 @@ class StoneMind {
     // 显示AI策略状态在机器人区域
     showAIStrategy(message, type = 'thinking') {
         const strategyElement = document.getElementById('ai-strategy-display');
-        strategyElement.innerHTML = `<span>策略: ${message}</span>`;
-        
-        // 清除之前的样式类
-        strategyElement.className = 'ai-strategy-display';
-        // 添加新的策略类型样式
-        strategyElement.classList.add(type);
+        console.log('显示AI策略:', message, type, strategyElement);
+        if (strategyElement) {
+            strategyElement.innerHTML = `<span>策略: ${message}</span>`;
+            
+            // 清除之前的样式类
+            strategyElement.className = 'ai-strategy-display';
+            // 添加新的策略类型样式
+            strategyElement.classList.add(type);
+            console.log('策略显示已更新:', strategyElement.innerHTML);
+        } else {
+            console.error('找不到ai-strategy-display元素！');
+        }
     }
 
     // 重置AI策略显示
     resetAIStrategy() {
         const strategyElement = document.getElementById('ai-strategy-display');
-        strategyElement.innerHTML = '<span>策略: 🤖 AI模式</span>';
-        strategyElement.className = 'ai-strategy-display';
+        console.log('重置AI策略显示:', strategyElement);
+        if (strategyElement) {
+            strategyElement.innerHTML = '<span>策略: 🤖 AI模式</span>';
+            strategyElement.className = 'ai-strategy-display';
+            console.log('策略显示已重置:', strategyElement.innerHTML);
+        } else {
+            console.error('找不到ai-strategy-display元素！');
+        }
     }
 
     async getAIMove() {
