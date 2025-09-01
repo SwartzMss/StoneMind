@@ -569,10 +569,25 @@ class StoneMind {
         }
     }
 
+    // 在界面上显示调试信息（手机浏览器友好）
+    showDebugInfo(message) {
+        const debugElement = document.getElementById('debug-info');
+        if (debugElement) {
+            debugElement.style.display = 'block';
+            debugElement.textContent = `[调试] ${message}`;
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                debugElement.style.display = 'none';
+            }, 5000);
+        }
+    }
+
     // 显示AI策略状态在机器人区域
     showAIStrategy(message, type = 'thinking') {
         const strategyElement = document.getElementById('ai-strategy-display');
         console.log('显示AI策略:', message, type, strategyElement);
+        this.showDebugInfo(`策略更新: ${message} (类型: ${type})`);
+        
         if (strategyElement) {
             strategyElement.innerHTML = `<span>策略: ${message}</span>`;
             
@@ -583,6 +598,7 @@ class StoneMind {
             console.log('策略显示已更新:', strategyElement.innerHTML);
         } else {
             console.error('找不到ai-strategy-display元素！');
+            this.showDebugInfo('错误: 找不到策略显示元素！');
         }
     }
 
@@ -590,12 +606,15 @@ class StoneMind {
     resetAIStrategy() {
         const strategyElement = document.getElementById('ai-strategy-display');
         console.log('重置AI策略显示:', strategyElement);
+        this.showDebugInfo('策略重置为AI模式');
+        
         if (strategyElement) {
             strategyElement.innerHTML = '<span>策略: 🤖 AI模式</span>';
             strategyElement.className = 'ai-strategy-display';
             console.log('策略显示已重置:', strategyElement.innerHTML);
         } else {
             console.error('找不到ai-strategy-display元素！');
+            this.showDebugInfo('错误: 找不到策略显示元素！');
         }
     }
 
@@ -659,6 +678,7 @@ class StoneMind {
                 if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
                     const debugMsg = `坐标超出范围(${row},${col})`;
                     console.log('降级原因:', debugMsg);
+                    this.showDebugInfo(`AI降级: ${debugMsg}`);
                     this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                     return this.getSmartMove();
                 }
@@ -666,6 +686,7 @@ class StoneMind {
                 if (this.board[row][col] !== null) {
                     const debugMsg = `位置已占用(${row},${col})`;
                     console.log('降级原因:', debugMsg);
+                    this.showDebugInfo(`AI降级: ${debugMsg}`);
                     this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                     return this.getSmartMove();
                 }
@@ -673,6 +694,7 @@ class StoneMind {
                 if (this.isSuicideMove(row, col, this.aiColor)) {
                     const debugMsg = `自杀手(${row},${col})`;
                     console.log('降级原因:', debugMsg);
+                    this.showDebugInfo(`AI降级: ${debugMsg}`);
                     this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                     return this.getSmartMove();
                 }
@@ -682,6 +704,7 @@ class StoneMind {
             } else {
                 const debugMsg = `解析失败:"${moveText}"`;
                 console.log('降级原因:', debugMsg);
+                this.showDebugInfo(`AI降级: ${debugMsg}`);
                 this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
                 return this.getSmartMove();
             }
