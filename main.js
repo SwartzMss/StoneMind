@@ -622,7 +622,9 @@ class StoneMind {
             console.log('API响应状态:', response.status);
             
             if (!response.ok) {
-                throw new Error(`API 请求失败: ${response.status}`);
+                const errorText = await response.text();
+                console.error('API错误详情:', errorText);
+                throw new Error(`API 请求失败: ${response.status} - ${errorText}`);
             }
 
             const data = await response.json();
@@ -639,24 +641,43 @@ class StoneMind {
             if (match) {
                 const row = parseInt(match[1]);
                 const col = parseInt(match[2]);
-                if (this.isValidMove(row, col)) {
-                    console.log(`AI选择: (${row},${col})`);
-                    // AI成功使用大模型，保持默认显示
-                    return { row, col };
-                } else {
-                    console.log(`AI返回无效位置: (${row},${col})`);
+                console.log(`解析坐标: row=${row}, col=${col}`);
+                
+                // 详细检查为什么无效
+                if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
+                    const debugMsg = `坐标超出范围(${row},${col})`;
+                    console.log('降级原因:', debugMsg);
+                    this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
+                    return this.getSmartMove();
                 }
+                
+                if (this.board[row][col] !== null) {
+                    const debugMsg = `位置已占用(${row},${col})`;
+                    console.log('降级原因:', debugMsg);
+                    this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
+                    return this.getSmartMove();
+                }
+                
+                if (this.isSuicideMove(row, col, this.aiColor)) {
+                    const debugMsg = `自杀手(${row},${col})`;
+                    console.log('降级原因:', debugMsg);
+                    this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
+                    return this.getSmartMove();
+                }
+                
+                console.log(`AI选择: (${row},${col}) - 有效`);
+                return { row, col };
+            } else {
+                const debugMsg = `解析失败:"${moveText}"`;
+                console.log('降级原因:', debugMsg);
+                this.showAIStrategy(`🔍 ${debugMsg}`, 'fallback');
+                return this.getSmartMove();
             }
-
-            // 如果AI返回无效，使用智能降级策略
-            console.log('AI回复无效，使用智能降级');
-            this.showAIStrategy('⚡ 智能降级', 'fallback');
-            return this.getSmartMove();
 
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
-            // 降级到智能策略
-            this.showAIStrategy('🔧 API失败', 'error');
+            const debugMsg = `API错误:${error.message.substring(0,20)}`;
+            this.showAIStrategy(`� ${debugMsg}`, 'error');
             return this.getSmartMove();
         }
     }
