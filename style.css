@@ -308,15 +308,41 @@ header p {
     text-align: center;
 }
 
-.ai-strategy {
-    font-size: 12px;
+/* AI策略显示在机器人区域 */
+.ai-strategy-display {
+    font-size: 11px;
     color: #666;
-    font-weight: 500;
+    margin-top: 4px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
     text-align: center;
-    margin-top: 5px;
-    padding: 3px 8px;
-    border-radius: 10px;
-    background: rgba(102, 126, 234, 0.1);
+}
+
+/* 不同策略的颜色 */
+.ai-strategy-display.thinking {
+    color: #667eea;
+    background: #f0f2ff;
+    border-color: #c5d0ff;
+}
+
+.ai-strategy-display.success {
+    color: #27ae60;
+    background: #f0f9f4;
+    border-color: #b8e6c7;
+}
+
+.ai-strategy-display.fallback {
+    color: #f39c12;
+    background: #fef9e7;
+    border-color: #f5d99f;
+}
+
+.ai-strategy-display.error {
+    color: #e74c3c;
+    background: #fdf2f2;
+    border-color: #f5b7b7;
 }
 
 .stone {
