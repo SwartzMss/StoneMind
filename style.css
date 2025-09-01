@@ -308,6 +308,17 @@ header p {
     text-align: center;
 }
 
+.ai-strategy {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+    text-align: center;
+    margin-top: 5px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: rgba(102, 126, 234, 0.1);
+}
+
 .stone {
     width: 20px;
     height: 20px;
