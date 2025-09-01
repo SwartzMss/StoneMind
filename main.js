@@ -17,6 +17,27 @@ class StoneMind {
         this.captureWinThreshold = 8; // 吃子获胜阈值
         this.debugMode = false; // 调试模式开关
         
+        // 统一的战略位置定义，避免重复代码
+        this.strategicPositions = [
+            { pos: [4, 4], name: '4,4(天元)', priority: 1 },      // 天元(最高优先级)
+            { pos: [2, 2], name: '2,2(星位)', priority: 2 },      // 左上角星位
+            { pos: [2, 6], name: '2,6(星位)', priority: 2 },      // 右上角星位
+            { pos: [6, 2], name: '6,2(星位)', priority: 2 },      // 左下角星位
+            { pos: [6, 6], name: '6,6(星位)', priority: 2 },      // 右下角星位
+            { pos: [2, 4], name: '2,4(边星)', priority: 3 },      // 上边星位
+            { pos: [4, 2], name: '4,2(边星)', priority: 3 },      // 左边星位
+            { pos: [4, 6], name: '4,6(边星)', priority: 3 },      // 右边星位
+            { pos: [6, 4], name: '6,4(边星)', priority: 3 },      // 下边星位
+            { pos: [3, 3], name: '3,3(小目)', priority: 4 },      // 小目位置
+            { pos: [3, 5], name: '3,5(小目)', priority: 4 },
+            { pos: [5, 3], name: '5,3(小目)', priority: 4 },
+            { pos: [5, 5], name: '5,5(小目)', priority: 4 },
+            { pos: [1, 4], name: '1,4(边)', priority: 5 },        // 边上重要点
+            { pos: [4, 1], name: '4,1(边)', priority: 5 },
+            { pos: [4, 7], name: '4,7(边)', priority: 5 },
+            { pos: [7, 4], name: '7,4(边)', priority: 5 }
+        ];
+        
         this.canvas = document.getElementById('board');
         this.ctx = this.canvas.getContext('2d');
         
@@ -964,17 +985,12 @@ class StoneMind {
             }
         }
         
-        // 2. 其次考虑重要位置：按围棋价值排序
-        const strategicMoves = [
-            [4, 4], // 天元(中心)，9路棋盘的核心要点
-            [2, 2], [2, 6], [6, 2], [6, 6], // 星位，角部的最佳位置
-            [2, 4], [4, 2], [4, 6], [6, 4], // 边星，边上的要点
-            [3, 3], [3, 5], [5, 3], [5, 5], // 小目，角部的次选位置
-            [1, 4], [4, 1], [4, 7], [7, 4]  // 边上的重要点
-            // 注意：避开真正的角点(0,0)等死角位置
-        ];
+        // 2. 其次考虑重要位置：按围棋价值排序（使用统一的战略位置定义）
+        const strategicMovesByPriority = this.strategicPositions
+            .sort((a, b) => a.priority - b.priority) // 按优先级排序
+            .map(item => item.pos); // 只取坐标
         
-        for (const [row, col] of strategicMoves) {
+        for (const [row, col] of strategicMovesByPriority) {
             if (this.isValidMove(row, col)) {
                 this.currentPlayer = originalPlayer;
                 this.addLog(`🎯 智能降级：选择战略位置 (${row},${col})`, 'info');
@@ -1065,8 +1081,27 @@ class StoneMind {
         const allowedMoves = this.getAllAllowedMoves();
         const allowedText = allowedMoves.map(([r, c]) => `${r},${c}`).join(' | ');
         
+        // 分析特殊位置的占用情况
+        const occupiedSpecialPositions = [];
+        const availableSpecialPositions = [];
+        
+        for (const { pos, name } of this.strategicPositions.filter(item => item.priority <= 3)) {
+            const [row, col] = pos;
+            const cellState = this.board[row][col];
+            
+            if (cellState !== null) {
+                // 已被占用的特殊位置
+                occupiedSpecialPositions.push(`${name}被${cellState === 'black' ? '黑子' : '白子'}占用`);
+            } else if (this.isValidMove(row, col)) {
+                // 可用的特殊位置
+                availableSpecialPositions.push(name);
+            }
+        }
+        
         this.addLog(`🔐 本次请求 Nonce: ${nonce}`, 'info');
         this.addLog(`📝 白名单位置: ${allowedText}`, 'info');
+        this.addLog(`❌ 已占用特殊位置: ${occupiedSpecialPositions.join('、') || '无'}`, 'warning');
+        this.addLog(`✅ 可用特殊位置: ${availableSpecialPositions.join('、') || '无'}`, 'success');
         
         let prompt = `【围棋对局】9x9棋盘，请选择最佳落子位置。\n\n`;
         
@@ -1075,12 +1110,27 @@ class StoneMind {
         prompt += `\n【允许位置白名单】：${allowedText}\n`;
         prompt += `【请求标识】：${nonce}\n`;
         
+        // 明确告知已占用的特殊位置，形成"黑名单"警告
+        if (occupiedSpecialPositions.length > 0) {
+            prompt += `\n【⚠️ 已占用特殊位置 - 禁止选择】：\n`;
+            for (const occupied of occupiedSpecialPositions) {
+                prompt += `- ${occupied}\n`;
+            }
+            prompt += `【重要】：以上位置已被占用，绝对不能再次选择！\n`;
+        }
+        
+        // 推荐可用的特殊位置
+        if (availableSpecialPositions.length > 0) {
+            prompt += `\n【✅ 推荐特殊位置】：${availableSpecialPositions.join(' 或 ')}\n`;
+        }
+        
         prompt += `\n【严格规则】：\n`;
         prompt += `- 坐标格式：row,col (例如：3,4)\n`;
         prompt += `- 坐标范围：0-8\n`;
         prompt += `- 只能从白名单中选择位置\n`;
         prompt += `- 必须回显请求标识以验证非缓存回复\n`;
         prompt += `- 绝对不能选择已占用位置(B或W)\n`;
+        prompt += `- 特别注意：不能选择上述标明已占用的特殊位置\n`;
         
         if (lastMove) {
             prompt += `\n【上一手】：${lastMove.color === 'black' ? '黑子' : '白子'}下在(${lastMove.row},${lastMove.col})`;
@@ -1090,12 +1140,11 @@ class StoneMind {
         
         // 根据局面阶段给出不同策略
         if (moveCount < 8) {
-            const availableStrategicMoves = this.getAvailableStrategicMoves();
-            if (availableStrategicMoves.length > 0) {
-                prompt += `\n【策略建议】：当前可选的重要位置：${availableStrategicMoves.join(' 或 ')}`;
-                prompt += `\n【注意】：优先考虑上述空闲的重要位置，但也可选择其他白名单位置`;
+            if (availableSpecialPositions.length > 0) {
+                prompt += `\n【策略建议】：优先考虑推荐的可用特殊位置：${availableSpecialPositions.join(' 或 ')}`;
+                prompt += `\n【注意】：避开已占用的特殊位置，可从白名单中选择其他位置`;
             } else {
-                prompt += `\n【策略建议】：重要位置已被占用，从白名单中选择次要战略点`;
+                prompt += `\n【策略建议】：所有重要特殊位置已被占用，从白名单中选择次要战略点`;
             }
         } else if (moveCount < 20) {
             prompt += `\n【策略建议】：攻击孤子、连接己方、争夺要点`;
@@ -1105,7 +1154,7 @@ class StoneMind {
         
         prompt += `\n\n【输出格式】：只返回 "row,col | Nonce:${nonce}"`;
         prompt += `\n【禁止】：任何解释、分析或额外文字`;
-        prompt += `\n\n请从白名单中选择最佳位置：`;
+        prompt += `\n\n请从白名单中选择最佳位置，避开已占用的特殊位置：`;
         
         return prompt;
     }
@@ -1131,22 +1180,15 @@ class StoneMind {
 
     // 获取当前可用的重要战略位置
     getAvailableStrategicMoves() {
-        const strategicPositions = [
-            { pos: [4, 4], name: '4,4(天元)' },      // 天元
-            { pos: [2, 2], name: '2,2(星位)' },      // 左上角星位
-            { pos: [2, 6], name: '2,6(星位)' },      // 右上角星位
-            { pos: [6, 2], name: '6,2(星位)' },      // 左下角星位
-            { pos: [6, 6], name: '6,6(星位)' },      // 右下角星位
-            { pos: [2, 4], name: '2,4(边星)' },      // 上边星位
-            { pos: [4, 2], name: '4,2(边星)' },      // 左边星位
-            { pos: [4, 6], name: '4,6(边星)' },      // 右边星位
-            { pos: [6, 4], name: '6,4(边星)' }       // 下边星位
-        ];
+        // 使用统一的战略位置定义，只取前9个最重要的位置用于提示
+        const mainStrategicPositions = this.strategicPositions
+            .filter(item => item.priority <= 3) // 只取天元、星位、边星
+            .sort((a, b) => a.priority - b.priority); // 按优先级排序
         
         const availableMoves = [];
         this.addLog('🔍 开始检查战略位置...', 'info');
         
-        for (const { pos, name } of strategicPositions) {
+        for (const { pos, name } of mainStrategicPositions) {
             const [row, col] = pos;
             const cellState = this.board[row][col];
             const isValid = this.isValidMove(row, col);
