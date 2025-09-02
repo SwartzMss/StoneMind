@@ -21,6 +21,7 @@ class StoneMind {
         this._autoHideDebug = true; // 是否自动隐藏调试信息（默认开启，避免面板长时间占位）
         this.captureEffects = []; // 提子动画效果 [{row,col,start,duration}]
         this._lastBoardHash = null; // 简易劫规则所需：记录上一步之前的局面哈希（上上步）
+        this._aiMoveToken = 0; // 用于防抖/并发保护的AI回合令牌
         
         // 统一的战略位置定义，避免重复代码
         this.strategicPositions = [
@@ -59,6 +60,7 @@ class StoneMind {
         this.whiteCaptured = 0;
         this.captureEffects = [];
         this._lastBoardHash = null;
+        this._aiMoveToken = 0;
         this.currentPlayer = 'black';
         this.gameActive = true;
         this.aiThinking = false;
@@ -467,7 +469,7 @@ class StoneMind {
         this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
         
         // 如果下一步是AI，则让AI下棋
-        if (this.currentPlayer === this.aiColor && this.apiKey) {
+        if (this.currentPlayer === this.aiColor && this.apiKey && !this.aiThinking) {
             this.makeAIMove();
         }
         
@@ -631,6 +633,8 @@ class StoneMind {
             return;
         }
 
+        // 并发保护：开启新一轮AI令牌
+        const myToken = ++this._aiMoveToken;
         this.aiThinking = true;
         this.updateDisplay();
         this.resetAIStrategy();
@@ -641,7 +645,10 @@ class StoneMind {
         
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
+                // 若在等待过程中令牌已变化，提前终止
+                if (myToken !== this._aiMoveToken) return;
                 moveResult = await this.attemptAIMove(attempt);
+                if (myToken !== this._aiMoveToken) return;
                 if (moveResult.success) {
                     break; // 成功下棋，跳出重试循环
                 }
@@ -668,10 +675,12 @@ class StoneMind {
         }
 
         // 处理最终结果
+        if (myToken !== this._aiMoveToken) return;
         if (!moveResult || !moveResult.success) {
             this.handleAIMoveFailed();
         }
 
+        if (myToken !== this._aiMoveToken) return;
         this.aiThinking = false;
         this.updateDisplay();
     }
