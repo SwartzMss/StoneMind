@@ -7,6 +7,7 @@ class StoneMind {
         this.currentPlayer = 'black'; // 'black' or 'white'
         this.playerColor = 'black';
         this.aiColor = 'white';
+        this.difficulty = 2; // 1/2/3 星
         this.blackCaptured = 0;
         this.whiteCaptured = 0;
         this.apiKey = '';
@@ -120,6 +121,14 @@ class StoneMind {
             // 清除之前的状态显示
             this.clearApiStatus();
         });
+
+        const difficultySelect = document.getElementById('difficulty');
+        if (difficultySelect) {
+            this.difficulty = parseInt(difficultySelect.value, 10) || 2;
+            difficultySelect.addEventListener('change', (e) => {
+                this.difficulty = parseInt(e.target.value, 10) || 2;
+            });
+        }
     }
 
     async testApiKey() {
@@ -1014,12 +1023,27 @@ class StoneMind {
         
         // 0. 启发式Top候选优先
         const topMoves = this.getTopHeuristicMoves(5);
-        for (const m of topMoves) {
-            if (this.isValidMove(m.row, m.col)) {
-                this.currentPlayer = originalPlayer;
-                this.addLog(`🧠 启发式优先选择 (${m.row},${m.col}) 分数:${m.score}`, 'success');
-                return { row: m.row, col: m.col };
+        let picked = null;
+        if (this.difficulty >= 3) {
+            // 三星：选择评分最高
+            picked = topMoves[0];
+        } else if (this.difficulty === 2) {
+            // 二星：在Top2随机
+            const pool = topMoves.slice(0, Math.min(2, topMoves.length));
+            picked = pool[Math.floor(Math.random() * pool.length)];
+        } else {
+            // 一星：在Top5随机，且10%全局随机
+            if (Math.random() < 0.10) {
+                picked = this.getRandomValidMove();
+            } else {
+                const pool = topMoves;
+                picked = pool[Math.floor(Math.random() * pool.length)];
             }
+        }
+        if (picked && this.isValidMove(picked.row, picked.col)) {
+            this.currentPlayer = originalPlayer;
+            this.addLog(`🧠 难度${this.difficulty} 选择 (${picked.row},${picked.col})`, 'success');
+            return { row: picked.row, col: picked.col };
         }
 
         // 1. 优先尝试攻击：能吃掉对方棋子
