@@ -1148,11 +1148,11 @@ class StoneMind {
         this.board[row][col] = color;
 
         // 1) 直接提子收益
-        const captureStones = this.simulateCaptures(row, col, color);
+        const captureStones = window.Engine.simulateCaptures(this.board, row, col, color);
 
         // 2) 自身落子后的气数（安全性）
-        const myGroup = this.getGroup(row, col);
-        const myLiberties = this.countGroupLiberties(myGroup);
+        const myGroup = window.Engine.getGroup(this.board, row, col);
+        const myLiberties = window.Engine.countGroupLiberties(this.board, myGroup);
 
         // 3) 与己方连接（相邻己方子数量）
         const friendlyAdjacents = this.countAdjacentColor(row, col, color);
@@ -1180,12 +1180,12 @@ class StoneMind {
 
         // 权重组合（可调）
         const score =
-            captureStones * 100 +        // 直接提子优先
-            myLiberties * 6 +            // 气越多越安全
-            friendlyAdjacents * 5 +      // 连接收益
-            strategicBonus +             // 战略位
-            (10 - centerDistance) * 2 -  // 越靠中心越好
-            dangerPenalty;               // 危险惩罚
+            captureStones * 100 +
+            myLiberties * 6 +
+            friendlyAdjacents * 5 +
+            strategicBonus +
+            (10 - centerDistance) * 2 -
+            dangerPenalty;
 
         // 回滚临时落子
         this.board[row][col] = null;
