@@ -79,27 +79,6 @@ header p {
     transition: border-color 0.3s;
 }
 
-.difficulty-selection {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.difficulty-selection input {
-    display: none;
-}
-
-.difficulty-selection label {
-    font-size: 20px;
-    cursor: pointer;
-    color: #adb5bd;
-    transition: color 0.3s;
-}
-
-.difficulty-selection input:checked + label {
-    color: #ffd700;
-}
-
 .api-input-group {
     display: flex;
     gap: 8px;
