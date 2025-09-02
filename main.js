@@ -878,7 +878,7 @@ class StoneMind {
         this.showDebugInfo(`棋盘状态已获取，准备发送给AI`);
 
         try {
-            const apiResponse = await this.callDeepSeekAPI(prompt);
+            const apiResponse = await window.AI.callDeepSeekAPI(this.apiKey, prompt, Math.random().toString(36).substring(2, 15));
             return this.parseAIMoveResponse(apiResponse, boardState);
         } catch (error) {
             console.error('DeepSeek API 调用失败:', error);
@@ -1380,57 +1380,24 @@ class StoneMind {
     }
 
     generateGoPrompt(boardState) {
-        // 生成唯一nonce，防止AI使用缓存或历史记忆
-        const nonce = Math.random().toString(36).substring(2, 15);
-        this._lastNonce = nonce; // 存储以便后续验证
-        
         const lastMove = this.gameHistory.length > 0 ? this.gameHistory[this.gameHistory.length - 1] : null;
-        const moveCount = this.gameHistory.length;
-        
         // 获取更安全的白名单（优先安全落点）
         const safeMoves = this.getAllSafeMoves(2);
         const allowedMoves = safeMoves.length > 0 ? safeMoves : this.getAllAllowedMoves();
         const allowedText = allowedMoves.map(([r, c]) => `${r},${c}`).join(' | ');
-
-        // 基于启发式的Top5推荐（仅作引导）
+        // 启发式Top5
         const topMovesHeuristic = this.getTopHeuristicMoves(5);
         const topMovesText = topMovesHeuristic.map(m => `${m.row},${m.col}`).join(' | ');
-        
-        this.addLog(`🔐 本次请求 Nonce: ${nonce}`, 'info');
         this.addLog(`📝 白名单位置: ${allowedText}`, 'info');
-        
-        let prompt = `【围棋对局】9x9棋盘，请选择最佳落子位置。\n\n`;
-        
-        prompt += `【棋盘状态】(行列坐标从0开始，B=黑子，W=白子，.=空位)：\n${boardState}`;
-        
-        prompt += `\n【允许位置白名单】：${allowedText}\n`;
-        prompt += `【请求标识】：${nonce}\n`;
-        
-                
-        // 附加启发式Top5（作为引导语义，仍须从白名单中选择）
-        if (topMovesText) {
-            prompt += `\n【🧠 启发式Top5】：${topMovesText}\n`;
-        }
-        
-        prompt += `\n【严格规则】：\n`;
-        prompt += `- 坐标格式：row,col (例如：3,4)\n`;
-        prompt += `- 坐标范围：0-8\n`;
-        prompt += `- 只能从白名单中选择位置（白名单已过滤不安全点）\n`;
-        prompt += `- 必须回显请求标识以验证非缓存回复\n`;
-        prompt += `- 绝对不能选择已占用位置(B或W)\n`;
-        
-        if (lastMove) {
-            prompt += `\n【上一手】：${lastMove.color === 'black' ? '黑子' : '白子'}下在(${lastMove.row},${lastMove.col})`;
-        }
-        
-        prompt += `\n【你的颜色】：${this.aiColor === 'black' ? '黑子(B)' : '白子(W)'}`;
-        
-        
-        
-        prompt += `\n\n【输出格式】：只返回 "row,col | Nonce:${nonce}"`;
-        prompt += `\n【禁止】：任何解释、分析或额外文字`;
-        prompt += `\n\n请从白名单中选择最佳位置，避开已占用的特殊位置：`;
-        
+        const { prompt, nonce } = window.AI.generatePrompt({
+            boardState,
+            allowedMovesText: allowedText,
+            topMovesText,
+            aiColor: this.aiColor,
+            lastMove
+        });
+        this._lastNonce = nonce;
+        this.addLog(`🔐 本次请求 Nonce: ${nonce}`, 'info');
         return prompt;
     }
 
