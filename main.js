@@ -7,7 +7,7 @@ class StoneMind {
         this.currentPlayer = 'black'; // 'black' or 'white'
         this.playerColor = 'black';
         this.aiColor = 'white';
-        this.difficulty = 2; // 1/2/3 星
+        this.difficulty = 1; // 1/2/3 星（默认一星）
         this.blackCaptured = 0;
         this.whiteCaptured = 0;
         this.apiKey = '';
@@ -126,9 +126,9 @@ class StoneMind {
 
         const difficultySelect = document.getElementById('difficulty');
         if (difficultySelect) {
-            this.difficulty = parseInt(difficultySelect.value, 10) || 2;
+            this.difficulty = parseInt(difficultySelect.value, 10) || 1;
             difficultySelect.addEventListener('change', (e) => {
-                this.difficulty = parseInt(e.target.value, 10) || 2;
+                this.difficulty = parseInt(e.target.value, 10) || 1;
             });
         }
     }
