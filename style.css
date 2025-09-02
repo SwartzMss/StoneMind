@@ -629,6 +629,15 @@ input:checked + .slider:before {
     background: #fafafa;
 }
 
+/* 调整中部两侧面板对齐，避免遮挡文字 */
+.players-section {
+    align-items: flex-start;
+}
+
+.player-details {
+    align-items: flex-start;
+}
+
 .clear-log-btn {
     background: #dc3545;
     color: white;

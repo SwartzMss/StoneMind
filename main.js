@@ -18,7 +18,7 @@ class StoneMind {
         this.captureWinThreshold = 8; // 吃子获胜阈值
         this.debugMode = false; // 调试模式开关
         this._debugInfoTimer = null; // 调试信息隐藏定时器
-        this._autoHideDebug = false; // 是否自动隐藏调试信息（默认不隐藏，避免闪烁）
+        this._autoHideDebug = true; // 是否自动隐藏调试信息（默认开启，避免面板长时间占位）
         this.captureEffects = []; // 提子动画效果 [{row,col,start,duration}]
         this._lastBoardHash = null; // 简易劫规则所需：记录上一步之前的局面哈希（上上步）
         
