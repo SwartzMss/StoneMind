@@ -20,6 +20,7 @@ class StoneMind {
         this._debugInfoTimer = null; // 调试信息隐藏定时器
         this._autoHideDebug = false; // 是否自动隐藏调试信息（默认不隐藏，避免闪烁）
         this.captureEffects = []; // 提子动画效果 [{row,col,start,duration}]
+        this._lastBoardHash = null; // 简易劫规则所需：记录上一步之前的局面哈希（上上步）
         
         // 统一的战略位置定义，避免重复代码
         this.strategicPositions = [
@@ -57,6 +58,7 @@ class StoneMind {
         this.blackCaptured = 0;
         this.whiteCaptured = 0;
         this.captureEffects = [];
+        this._lastBoardHash = null;
         this.currentPlayer = 'black';
         this.gameActive = true;
         this.aiThinking = false;
@@ -417,11 +419,32 @@ class StoneMind {
         // 清除预览状态
         this.previewMove = null;
 
+        // KO: 落子前的局面Hash与棋盘快照（用于违规回滚）
+        const prevHash = this.boardHash();
+        const boardSnapshot = this.board.map(r => r.slice());
+        const prevBlackCaptured = this.blackCaptured;
+        const prevWhiteCaptured = this.whiteCaptured;
+        const prevEffects = this.captureEffects.slice();
+
         // 放置棋子
         this.board[row][col] = color;
         
         // 检查提子
         const captured = this.checkCaptures(row, col, color);
+        const nextHash = this.boardHash();
+
+        // 简易KO：若正好提1子且 nextHash 与 _lastBoardHash 相同，则禁止
+        if (captured === 1 && this._lastBoardHash !== null && nextHash === this._lastBoardHash) {
+            // 回滚：恢复棋盘与计数、动画
+            this.board = boardSnapshot.map(r => r.slice());
+            this.blackCaptured = prevBlackCaptured;
+            this.whiteCaptured = prevWhiteCaptured;
+            this.captureEffects = prevEffects.slice();
+            this.addLog('❌ 违反劫规则，落子无效', 'error');
+            this.drawBoard();
+            this.updateDisplay();
+            return false;
+        }
         
         // 记录步数
         const moveNotation = this.getMoveNotation(row, col);
@@ -429,6 +452,9 @@ class StoneMind {
             row, col, color, captured, notation: moveNotation
         });
         
+        // 走完一步后，记录“上上步”的Hash用于下一手KO检测
+        this._lastBoardHash = prevHash;
+
         this.drawBoard();
         this.updateDisplay();
         
@@ -1025,8 +1051,10 @@ class StoneMind {
         const topMoves = this.getTopHeuristicMoves(5);
         let picked = null;
         if (this.difficulty >= 3) {
-            // 三星：选择评分最高
-            picked = topMoves[0];
+            // 三星：选择评分最高后，做一层安全搜索微调
+            const pickedGreedy = topMoves[0];
+            const refined = this.chooseWithOnePly(topMoves);
+            picked = refined || pickedGreedy;
         } else if (this.difficulty === 2) {
             // 二星：在Top2随机
             const pool = topMoves.slice(0, Math.min(2, topMoves.length));
@@ -1206,6 +1234,88 @@ class StoneMind {
         return top;
     }
 
+    // 按指定颜色检查合法落点（不改变外部状态）
+    isValidFor(color, row, col) {
+        const original = this.currentPlayer;
+        this.currentPlayer = color;
+        const ok = this.isValidMove(row, col);
+        this.currentPlayer = original;
+        return ok;
+    }
+
+    // 获取某颜色的所有合法落点
+    getAllAllowedMovesFor(color) {
+        const original = this.currentPlayer;
+        this.currentPlayer = color;
+        const moves = [];
+        for (let r = 0; r < this.boardSize; r++) {
+            for (let c = 0; c < this.boardSize; c++) {
+                if (this.isValidMove(r, c)) moves.push([r, c]);
+            }
+        }
+        this.currentPlayer = original;
+        return moves;
+    }
+
+    // 三星用：对候选做一层安全搜索，规避对手立即最强反击
+    chooseWithOnePly(candidates) {
+        if (!candidates || candidates.length === 0) return null;
+        let best = null;
+        let bestScore = -Infinity;
+
+        for (const m of candidates) {
+            const row = m.row ?? m[0];
+            const col = m.col ?? m[1];
+            if (!this.isValidFor(this.aiColor, row, col)) continue;
+
+            // 自身启发分
+            const selfScore = this.evaluateMove(row, col, this.aiColor);
+
+            // 快照
+            const boardSnapshot = this.board.map(r => r.slice());
+            const prevBlackCaptured = this.blackCaptured;
+            const prevWhiteCaptured = this.whiteCaptured;
+            const prevEffects = this.captureEffects.slice();
+            const originalPlayer = this.currentPlayer;
+
+            // 模拟我方落子
+            this.currentPlayer = this.aiColor;
+            this.board[row][col] = this.aiColor;
+            this.checkCaptures(row, col, this.aiColor);
+
+            // 对手最坏回应
+            let worstOpp = +Infinity;
+            const oppColor = this.aiColor === 'black' ? 'white' : 'black';
+            const oppMoves = this.getAllAllowedMovesFor(oppColor);
+            for (const [rr, cc] of oppMoves) {
+                // 简单评估对手收益（越大越坏）
+                const v = this.evaluateMove(rr, cc, oppColor);
+                if (v < worstOpp) worstOpp = v; // 取最小即对我最坏
+            }
+
+            // 回滚
+            this.board = boardSnapshot.map(r => r.slice());
+            this.blackCaptured = prevBlackCaptured;
+            this.whiteCaptured = prevWhiteCaptured;
+            this.captureEffects = prevEffects.slice();
+            this.currentPlayer = originalPlayer;
+
+            // 综合分：自身收益 - 0.8 * 对手最强反击收益
+            const finalScore = selfScore - 0.8 * (worstOpp === +Infinity ? 0 : -worstOpp);
+            // 注意：evaluateMove 越大对对应颜色越好，worstOpp 是对手的“最小v”，对我越坏意味着值越大
+            // 上面写成 self - 0.8 * oppBest
+            const oppBest = (worstOpp === +Infinity) ? 0 : -worstOpp; // 将最小v转为对手最佳正收益
+            const combined = selfScore - 0.8 * oppBest;
+
+            if (combined > bestScore) {
+                bestScore = combined;
+                best = { row, col };
+            }
+        }
+
+        return best;
+    }
+
     getRandomValidMove() {
         const validMoves = [];
         
@@ -1249,6 +1359,17 @@ class StoneMind {
         return state;
     }
 
+    // 简易FNV-1a哈希用于KO判断
+    boardHash() {
+        const s = this.getBoardStateString();
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h >>> 0;
+    }
+
     generateGoPrompt(boardState) {
         // 生成唯一nonce，防止AI使用缓存或历史记忆
         const nonce = Math.random().toString(36).substring(2, 15);
@@ -1276,9 +1397,7 @@ class StoneMind {
         prompt += `\n【允许位置白名单】：${allowedText}\n`;
         prompt += `【请求标识】：${nonce}\n`;
         
-        
-        // 移除“推荐特殊位置”段，避免误导模型（仅保留白名单与TopN）
-        
+                
         // 附加启发式Top5（作为引导语义，仍须从白名单中选择）
         if (topMovesText) {
             prompt += `\n【🧠 启发式Top5】：${topMovesText}\n`;
